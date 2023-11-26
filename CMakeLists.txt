@@ -13,6 +13,10 @@ if ( PLUGIN_G3POINT )
 		
 	add_subdirectory( include )
 	add_subdirectory( src )
+
+	target_include_directories( ${PROJECT_NAME} PRIVATE
+		C:/opt/eigen-3.4.0
+	)
 	
 	# set dependencies to necessary libraries
 	# target_link_libraries( ${PROJECT_NAME} LIB1 )
