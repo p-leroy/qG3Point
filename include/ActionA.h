@@ -1,12 +1,11 @@
-// Example of a plugin action
-
-#include "ccPointCloud.h"
-
 #include "Eigen/Dense"
+
+#include <vector>
 
 #pragma once
 
 class ccMainAppInterface;
+class ccPointCloud;
 
 namespace G3Point
 {

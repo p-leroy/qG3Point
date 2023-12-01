@@ -1,20 +1,24 @@
 #include "ActionA.h"
 
-#include "DgmOctree.h"
+#include <DgmOctree.h>
 
-#include "ccMainAppInterface.h"
-#include "ccOctree.h"
-#include "ccProgressDialog.h"
-#include "ccQtHelpers.h"
-#include "CCGeom.h"
+#include <ccMainAppInterface.h>
+#include <ccOctree.h>
+#include <ccProgressDialog.h>
+#include <ccQtHelpers.h>
+#include <ccHObject.h>
+#include <ccPointCloud.h>
+#include <ccScalarField.h>
+#include <CCGeom.h>
 
-#include "QMainWindow"
-#include "QCoreApplication"
-#include "QThreadPool"
-#include "QtConcurrent"
+#include <QMainWindow>
+#include <QCoreApplication>
+#include <QThreadPool>
+#include <QtConcurrent>
 
-#include "algorithm"
-#include "iostream"
+#include <algorithm>
+#include <iostream>
+#include <random>
 
 namespace G3Point
 {
@@ -27,6 +31,120 @@ ccOctree::Shared octree;
 ccPointCloud* cloud;
 unsigned char bestOctreeLevel = 0;
 CCCoreLib::DgmOctree::NearestNeighboursSearchStruct nNSS;
+ccMainAppInterface *app;
+
+RGBAColorsTableType getRandomColors(int randomColorsNumber)
+{
+	Q_ASSERT(randomColorsNumber > 1);
+
+	RGBAColorsTableType randomColors;
+	if (!randomColors.reserveSafe(static_cast<unsigned>(randomColorsNumber)))
+	{
+		ccLog::Error(QObject::tr("Not enough memory!"));
+	}
+
+	//generate random colors
+	int max = 255;
+
+	std::mt19937 gen(42);  // to seed mersenne twister.
+	std::uniform_int_distribution<uint16_t> dist(0, max); //1-byte types are not allowed
+
+	for (int i = 0; i < randomColorsNumber; ++i)
+	{
+		ccColor::Rgb col;
+		col.r = static_cast<unsigned char>(dist(gen));
+		col.g = static_cast<unsigned char>(dist(gen));
+//		col.b = static_cast<unsigned char>(dist(gen));
+		col.b = max - static_cast<ColorCompType>((static_cast<double>(col.r) + static_cast<double>(col.g)) / 2); //cast to double to avoid overflow (whatever the type of ColorCompType!!!)
+		randomColors.addElement(ccColor::Rgba(col, max));
+	}
+
+	return randomColors;
+}
+
+bool sfConvertToRandomRGB(const ccHObject::Container &selectedEntities, QWidget* parent) // take as is from ccEntityAction.cpp
+{
+	int s_randomColorsNumber = 256;
+
+	Q_ASSERT(s_randomColorsNumber > 1);
+
+	RGBAColorsTableType* randomColors = new RGBAColorsTableType;
+	if (!randomColors->reserveSafe(static_cast<unsigned>(s_randomColorsNumber)))
+	{
+		ccLog::Error(QObject::tr("Not enough memory!"));
+		return false;
+	}
+
+	//generate random colors
+	int max = 255;
+
+	std::mt19937 gen(42);  // to seed mersenne twister.
+	std::uniform_int_distribution<uint16_t> dist(0, max); //1-byte types are not allowed
+
+	for (int i = 0; i < s_randomColorsNumber; ++i)
+	{
+		ccColor::Rgb col;
+		col.r = static_cast<unsigned char>(dist(gen));
+		col.g = static_cast<unsigned char>(dist(gen));
+		col.b = static_cast<unsigned char>(dist(gen));
+//		col.b = max - static_cast<ColorCompType>((static_cast<double>(col.r) + static_cast<double>(col.g)) / 2); //cast to double to avoid overflow (whatever the type of ColorCompType!!!)
+		randomColors->addElement(ccColor::Rgba(col, max));
+	}
+
+	//apply random colors
+	for (ccHObject* ent : selectedEntities)
+	{
+		ccGenericPointCloud* cloud = nullptr;
+
+		bool lockedVertices = false;
+		cloud = ccHObjectCaster::ToPointCloud(ent, &lockedVertices);
+		if (lockedVertices)
+		{
+			ccLog::Warning("[G3Point::sfConvertToRandomRGB] DisplayLockedVerticesWarning");
+			continue;
+		}
+		if (cloud != nullptr) //TODO
+		{
+			ccPointCloud* pc = static_cast<ccPointCloud*>(cloud);
+			ccScalarField* sf = pc->getCurrentDisplayedScalarField();
+			//if there is no displayed SF --> nothing to do!
+			if (sf && sf->currentSize() >= pc->size())
+			{
+				if (!pc->resizeTheRGBTable(false))
+				{
+					ccLog::Error(QObject::tr("Not enough memory!"));
+					break;
+				}
+				else
+				{
+					ScalarType minSF = sf->getMin();
+					ScalarType maxSF = sf->getMax();
+
+					ScalarType step = (maxSF - minSF) / (s_randomColorsNumber - 1);
+					if (step == 0)
+						step = static_cast<ScalarType>(1.0);
+
+					for (unsigned i = 0; i < pc->size(); ++i)
+					{
+						ScalarType val = sf->getValue(i);
+						unsigned colIndex = static_cast<unsigned>((val - minSF) / step);
+						if (colIndex == s_randomColorsNumber)
+							--colIndex;
+
+						pc->setPointColor(i, randomColors->getValue(colIndex));
+					}
+
+					pc->showColors(true);
+					pc->showSF(false); //just in case
+				}
+			}
+
+			cloud->prepareDisplayForRefresh_recursive();
+		}
+	}
+
+	return true;
+}
 
 void add_to_stack(int index, const Eigen::ArrayXi& n_donors, const Eigen::ArrayXXi& donors, std::vector<int>& stack)
 {
@@ -92,18 +210,68 @@ int segment_labels(bool useParallelStrategy)
 	Eigen::ArrayXi labelsnpoint = Eigen::ArrayXi::Zero(cloud->size());
 	std::vector<std::vector<int>> stacks;
 
+	int sfIdx = cloud->getScalarFieldIndexByName("g3point_label");
+	if (sfIdx == -1)
+	{
+		sfIdx = cloud->addScalarField("g3point_label");
+		if (sfIdx == -1)
+		{
+			ccLog::Error("[G3Point::segment_labels] impossible to create scalar field g3point_label");
+		}
+	}
+
+	CCCoreLib::ScalarField* g3point_label = cloud->getScalarField(sfIdx);
+	RGBAColorsTableType randomColors = getRandomColors(localMaximumIndexes.size());
+
+	if (!cloud->resizeTheRGBTable(false))
+	{
+		ccLog::Error(QObject::tr("Not enough memory!"));
+		return -1;
+	}
+
 	for (int k = 0; k < localMaximumIndexes.size(); k++)
 	{
 		int localMaximumIndex = localMaximumIndexes(k);
 		std::vector<int> stack;
 		add_to_stack(localMaximumIndex, nDonors, donors, stack);
-		stacks.push_back(stack);
 		// labels
 		for (auto i : stack)
 		{
 			labels(i) = k;
 			labelsnpoint(i) = stack.size();
+			if (g3point_label)
+			{
+				g3point_label->setValue(i, k);
+				cloud->setPointColor(i, randomColors.getValue(k));
+			}
 		}
+		stacks.push_back(stack);
+	}
+
+	if (g3point_label)
+	{
+		g3point_label->computeMinAndMax();
+	}
+
+	cloud->setCurrentDisplayedScalarField(sfIdx);
+	cloud->showColors(true);
+	cloud->showSF(false);
+
+//	cloud->redrawDisplay();
+//	cloud->prepareDisplayForRefresh();
+
+//	ccHObject::Container selectedEntities;
+//	selectedEntities.push_back(cloud);
+
+//	if (!sfConvertToRandomRGB(selectedEntities, app->getMainWindow()))
+//	{
+//		ccLog::Error("[G3Point::segment_labels] impossible to convert g3point_label to RGB colors");
+//	}
+
+	if (app)
+	{
+		app->refreshAll();
+		app->updateUI();
 	}
 
 	int nLabels = localMaximumIndexes.size();
@@ -204,6 +372,8 @@ void performActionA( ccMainAppInterface *appInterface )
 
 		return;
 	}
+
+	app = appInterface;
 
 	//we need one point cloud
 	if (!appInterface->haveOneSelection())
