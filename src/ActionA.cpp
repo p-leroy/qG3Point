@@ -24,14 +24,15 @@ namespace G3Point
 {
 
 Eigen::ArrayXXi neighbors_indexes;
-Eigen::ArrayXXf neighbors_distances;
-Eigen::ArrayXXf neighbors_slopes;
+Eigen::ArrayXXd neighbors_distances;
+Eigen::ArrayXXd neighbors_slopes;
 int kNN = 20;
 ccOctree::Shared octree;
 ccPointCloud* cloud;
 unsigned char bestOctreeLevel = 0;
 CCCoreLib::DgmOctree::NearestNeighboursSearchStruct nNSS;
 ccMainAppInterface *app;
+Eigen::ArrayXi stack;
 
 RGBAColorsTableType getRandomColors(int randomColorsNumber)
 {
@@ -158,19 +159,24 @@ void add_to_stack(int index, const Eigen::ArrayXi& n_donors, const Eigen::ArrayX
 
 int segment_labels(bool useParallelStrategy)
 {
+	std::cout << "[segment_labels]" << std::endl;
 	// for each point, find in the neighborhood the point with the minimum slope (the receiver)
-	Eigen::ArrayXf min_slopes(neighbors_slopes.rowwise().minCoeff());
+	Eigen::ArrayXd min_slopes(neighbors_slopes.rowwise().minCoeff());
 	Eigen::ArrayXi index_of_min_slope = Eigen::ArrayXi::Zero(cloud->size());
 	Eigen::ArrayXi receivers(cloud->size());
 
 	for (unsigned index = 0; index < cloud->size(); index++)
 	{
-		float min_slope = min_slopes(index);
+		double min_slope = min_slopes(index);
+		int count = 0;
 		for (int k = 0; k < kNN; k++)
 		{
 			if (neighbors_slopes(index, k) == min_slope)
 			{
 				index_of_min_slope(index) = k;
+				count++;
+				if (count > 1)
+					std::cout << "[segment_labels] slope already seen, index " << index << ", k "<< k << std::endl;
 			}
 		}
 		receivers(index) = neighbors_indexes(index, index_of_min_slope(index));
@@ -191,20 +197,30 @@ int segment_labels(bool useParallelStrategy)
 	}
 
 	// identify the donors for each receiver
+	std::cout << "[segment_labels] identify the donors for each receiver" << std::endl;
 	Eigen::ArrayXi nDonors = Eigen::ArrayXi::Zero(cloud->size());
 	Eigen::ArrayXXi donors = Eigen::ArrayXXi::Zero(cloud->size(), kNN);
 
+	std::cout << "[segment_labels] loop" << std::endl;
 	for (unsigned int k = 0; k < cloud->size(); k++)
 	{
 		int receiver = receivers(k);
 		if (receiver != k)  // this receiver is not a local maximum
 		{
-			nDonors(receiver) = nDonors(receiver) + 1;
-			donors(receiver, nDonors(receiver) - 1) = k;
+			if (nDonors(receiver) < kNN - 1)
+			{
+				nDonors(receiver) = nDonors(receiver) + 1;
+				donors(receiver, nDonors(receiver) - 1) = k;
+			}
+			else
+			{
+				std::cout << "maximum number of donors reached, k " << k << ", receiver(k) " << receiver << ", nDonors " << nDonors(receiver) << std::endl;
+			}
 		}
 	}
 
 	// build the stacks
+	std::cout << "[segment_labels] build the stacks" << std::endl;
 	Eigen::ArrayXi labels = Eigen::ArrayXi::Zero(cloud->size());
 	Eigen::ArrayXi labelsk = Eigen::ArrayXi::Zero(cloud->size());
 	Eigen::ArrayXi labelsnpoint = Eigen::ArrayXi::Zero(cloud->size());
@@ -279,6 +295,144 @@ int segment_labels(bool useParallelStrategy)
 	return nLabels;
 }
 
+int segment_labels_steepest_slope(bool useParallelStrategy)
+{
+	std::cout << "[segment_labels]" << std::endl;
+	// for each point, find in the neighborhood the point with the steepest slope (the receiver)
+	Eigen::ArrayXd steepest_slopes(neighbors_slopes.rowwise().maxCoeff());
+	Eigen::ArrayXi index_of_steepest_slope = Eigen::ArrayXi::Zero(cloud->size());
+	Eigen::ArrayXi receivers(cloud->size());
+
+	for (unsigned index = 0; index < cloud->size(); index++)
+	{
+		double steepest_slope = steepest_slopes(index);
+		int count = 0;
+		for (int k = 0; k < kNN; k++)
+		{
+			if (neighbors_slopes(index, k) == steepest_slope)
+			{
+				index_of_steepest_slope(index) = k;
+				count++;
+				if (count > 1)
+					std::cout << "[segment_labels] slope already seen, index " << index << ", k "<< k << std::endl;
+			}
+		}
+		receivers(index) = neighbors_indexes(index, index_of_steepest_slope(index));
+	}
+
+	// if the minimum slope is positive, the receiver is a base level node
+	int nb_maxima = (steepest_slopes < 0).count();
+	Eigen::ArrayXi localMaximumIndexes = Eigen::ArrayXi::Zero(nb_maxima);
+	int l = 0;
+	for (unsigned int k = 0; k < cloud->size(); k++)
+	{
+		if (steepest_slopes(k) < 0)
+		{
+			localMaximumIndexes(l) = k;
+			receivers(k) = k;
+			l++;
+		}
+	}
+
+	// identify the donors for each receiver
+	std::cout << "[segment_labels] identify the donors for each receiver" << std::endl;
+	Eigen::ArrayXi nDonors = Eigen::ArrayXi::Zero(cloud->size());
+	Eigen::ArrayXXi donors = Eigen::ArrayXXi::Zero(cloud->size(), kNN);
+
+	std::cout << "[segment_labels] loop" << std::endl;
+	for (unsigned int k = 0; k < cloud->size(); k++)
+	{
+		int receiver = receivers(k);
+		if (receiver != k)  // this receiver is not a local maximum
+		{
+			if (nDonors(receiver) < kNN - 1)
+			{
+				nDonors(receiver) = nDonors(receiver) + 1;
+				donors(receiver, nDonors(receiver) - 1) = k;
+			}
+			else
+			{
+				std::cout << "maximum number of donors reached, k " << k << ", receiver(k) " << receiver << ", nDonors " << nDonors(receiver) << std::endl;
+			}
+		}
+	}
+
+	// build the stacks
+	std::cout << "[segment_labels] build the stacks" << std::endl;
+	Eigen::ArrayXi labels = Eigen::ArrayXi::Zero(cloud->size());
+	Eigen::ArrayXi labelsk = Eigen::ArrayXi::Zero(cloud->size());
+	Eigen::ArrayXi labelsnpoint = Eigen::ArrayXi::Zero(cloud->size());
+	std::vector<std::vector<int>> stacks;
+
+	int sfIdx = cloud->getScalarFieldIndexByName("g3point_label");
+	if (sfIdx == -1)
+	{
+		sfIdx = cloud->addScalarField("g3point_label");
+		if (sfIdx == -1)
+		{
+			ccLog::Error("[G3Point::segment_labels] impossible to create scalar field g3point_label");
+		}
+	}
+
+	CCCoreLib::ScalarField* g3point_label = cloud->getScalarField(sfIdx);
+	RGBAColorsTableType randomColors = getRandomColors(localMaximumIndexes.size());
+
+	if (!cloud->resizeTheRGBTable(false))
+	{
+		ccLog::Error(QObject::tr("Not enough memory!"));
+		return -1;
+	}
+
+	for (int k = 0; k < localMaximumIndexes.size(); k++)
+	{
+		int localMaximumIndex = localMaximumIndexes(k);
+		std::vector<int> stack;
+		add_to_stack(localMaximumIndex, nDonors, donors, stack);
+		// labels
+		for (auto i : stack)
+		{
+			labels(i) = k;
+			labelsnpoint(i) = stack.size();
+			if (g3point_label)
+			{
+				g3point_label->setValue(i, k);
+				cloud->setPointColor(i, randomColors.getValue(k));
+			}
+		}
+		stacks.push_back(stack);
+	}
+
+	if (g3point_label)
+	{
+		g3point_label->computeMinAndMax();
+	}
+
+	cloud->setCurrentDisplayedScalarField(sfIdx);
+	cloud->showColors(true);
+	cloud->showSF(false);
+
+	//	cloud->redrawDisplay();
+	//	cloud->prepareDisplayForRefresh();
+
+	//	ccHObject::Container selectedEntities;
+	//	selectedEntities.push_back(cloud);
+
+	//	if (!sfConvertToRandomRGB(selectedEntities, app->getMainWindow()))
+	//	{
+	//		ccLog::Error("[G3Point::segment_labels] impossible to convert g3point_label to RGB colors");
+	//	}
+
+	if (app)
+	{
+		app->refreshAll();
+		app->updateUI();
+	}
+
+	int nLabels = localMaximumIndexes.size();
+
+	return nLabels;
+}
+
 void get_neighbors_distances_slopes(unsigned index)
 {
 	const CCVector3* P = cloud->getPoint(index);
@@ -307,6 +461,7 @@ void get_neighbors_distances_slopes(unsigned index)
 
 bool query_neighbors(ccPointCloud* cloud, ccMainAppInterface* appInterface, bool useParallelStrategy)
 {
+	std::cout << "[query_neighbor]" << std::endl;
 	QString errorStr;
 
 	ccProgressDialog progressDlg(true, appInterface->getMainWindow());
@@ -333,7 +488,6 @@ bool query_neighbors(ccPointCloud* cloud, ccMainAppInterface* appInterface, bool
 	bestOctreeLevel = octree->findBestLevelForAGivenPopulationPerCell(static_cast<unsigned>(std::max(3, kNN)));
 
 	size_t nPoints = cloud->size();
-	int maxThreadCount = 0;
 	CCCoreLib::DgmOctree::NearestNeighboursSearchStruct nNSS;
 	std::vector<unsigned> pointsIndexes;
 	pointsIndexes.resize(nPoints);
@@ -344,11 +498,9 @@ bool query_neighbors(ccPointCloud* cloud, ccMainAppInterface* appInterface, bool
 		{
 			pointsIndexes[i] = i;
 		}
-		if (maxThreadCount == 0)
-		{
-			maxThreadCount = ccQtHelpers::GetMaxThreadCount();
-		}
-		QThreadPool::globalInstance()->setMaxThreadCount(maxThreadCount);
+		int threadCount = std::max(1, ccQtHelpers::GetMaxThreadCount() - 2);
+		std::cout << "[query_neighbor] parallel strategy, thread count " << threadCount <<  std::endl;
+		QThreadPool::globalInstance()->setMaxThreadCount(threadCount);
 		QtConcurrent::blockingMap(pointsIndexes, get_neighbors_distances_slopes);
 	}
 	else
@@ -398,12 +550,14 @@ void performActionA( ccMainAppInterface *appInterface )
 	neighbors_indexes.resize(cloud->size(), kNN);
 	neighbors_distances.resize(cloud->size(), kNN);
 	neighbors_slopes.resize(cloud->size(), kNN);
+	stack.resize(cloud->size());
 
 	// Find neighbors of each point of the cloud
 	query_neighbors(cloud, appInterface, true);
 
 	// Perform initial segmentation
-	int nLabels = segment_labels();
+	// int nLabels = segment_labels();
+	int nLabels = segment_labels_steepest_slope();
 
 	appInterface->dispToConsole( "[G3Point] initial segmentation: " + QString::number(nLabels) + " labels", ccMainAppInterface::STD_CONSOLE_MESSAGE );
 
