@@ -13,6 +13,7 @@ if ( PLUGIN_G3POINT )
 		
 	add_subdirectory( include )
 	add_subdirectory( src )
+	add_subdirectory( ui )
 
 	target_include_directories( ${PROJECT_NAME} PRIVATE
 		C:/opt/eigen-3.4.0

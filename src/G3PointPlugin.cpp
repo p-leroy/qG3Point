@@ -87,7 +87,7 @@ QList<QAction *> G3PointPlugin::getActions()
 		// Connect appropriate signal
 		connect( m_action, &QAction::triggered, this, [this]()
 		{
-			G3Point::performActionA( m_app );
+			G3Point::G3PointAction::createAction(m_app);
 		});
 	}
 
