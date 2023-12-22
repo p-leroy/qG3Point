@@ -6,7 +6,7 @@
 
 #include <QObject>
 
-#include <qG3PointDialog.h>
+#include <G3PointDialog.h>
 
 #pragma once
 
@@ -44,7 +44,7 @@ private:
 	CCCoreLib::DgmOctree::NearestNeighboursSearchStruct m_nNSS;
 	ccMainAppInterface *m_app;
 	Eigen::ArrayXi m_stack;
-	qG3PointDialog* m_dlg;
+	G3PointDialog* m_dlg;
 
 	static G3PointAction* s_g3PointAction;
 };

@@ -7,15 +7,16 @@ namespace Ui {
 class qG3PointDialog;
 }
 
-class qG3PointDialog : public QDialog
+class G3PointDialog : public QDialog
 {
 	Q_OBJECT
 
 public:
-	explicit qG3PointDialog(QWidget *parent = nullptr);
-	~qG3PointDialog();
+	explicit G3PointDialog(QWidget *parent = nullptr);
+	~G3PointDialog();
 	void emitRun();
 	int getkNN();
+	bool isSteepestSlope();
 
 signals:
 	void run();

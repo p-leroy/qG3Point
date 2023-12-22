@@ -33,7 +33,7 @@
 
 #include <QtGui>
 
-#include "G3PointPlugin.h"
+#include "G3Point.h"
 
 #include "ActionA.h"
 

@@ -19,7 +19,7 @@
 #include <iostream>
 #include <random>
 
-#include <qG3PointDialog.h>
+#include <G3PointDialog.h>
 #include <QPushButton>
 
 namespace G3Point
@@ -302,37 +302,70 @@ void G3PointAction::add_to_stack_braun_willett(int index, const Eigen::ArrayXi& 
 
 int G3PointAction::segment_labels_braun_willett(bool useParallelStrategy)
 {
-	std::cout << "[segment_labels_braun_willett]" << std::endl;
-	// for each point, find in the neighborhood the point with the minimum slope (the receiver)
-	Eigen::ArrayXd min_slopes(m_neighbors_slopes.rowwise().minCoeff());
-	Eigen::ArrayXi index_of_min_slope = Eigen::ArrayXi::Zero(m_cloud->size());
+	std::cout << "[segment_labels]" << std::endl;
+
+	bool steepestSlope = m_dlg->isSteepestSlope();
+
+	// for each point, find in the neighborhood the point with the extreme slope, depending on the mode (the receiver)
+	Eigen::ArrayXd extreme_slopes;
+	if (steepestSlope)
+	{
+		std::cout << "[segment_labels] classical steepest slope algorithm [Braun, Willett 2013]" << std::endl;
+		extreme_slopes = m_neighbors_slopes.rowwise().maxCoeff();
+	}
+	else
+	{
+		std::cout << "[segment_labels] reversed version of the steepest slope algorithm [Braun, Willett 2013]" << std::endl;
+		extreme_slopes = m_neighbors_slopes.rowwise().minCoeff();
+	}
+	Eigen::ArrayXi index_of_extreme_slope = Eigen::ArrayXi::Zero(m_cloud->size());
 	Eigen::ArrayXi receivers(m_cloud->size());
 
 	for (unsigned index = 0; index < m_cloud->size(); index++)
 	{
-		double min_slope = min_slopes(index);
+		double extreme_slope = extreme_slopes(index);
 		for (int k = 0; k < m_kNN; k++)
 		{
-			if (m_neighbors_slopes(index, k) == min_slope)
+			if (m_neighbors_slopes(index, k) == extreme_slope)
 			{
-				index_of_min_slope(index) = k;
+				index_of_extreme_slope(index) = k;
 				break;
 			}
 		}
-		receivers(index) = m_neighbors_indexes(index, index_of_min_slope(index));
+		receivers(index) = m_neighbors_indexes(index, index_of_extreme_slope(index));
 	}
 
 	// if the minimum slope is positive, the receiver is a local maximum
-	int nb_maxima = (min_slopes > 0).count();
+	int nb_maxima;
+	if (steepestSlope)
+	{
+		nb_maxima = (extreme_slopes < 0).count();
+	}
+	else
+	{
+		nb_maxima = (extreme_slopes > 0).count();
+	}
 	Eigen::ArrayXi localMaximumIndexes = Eigen::ArrayXi::Zero(nb_maxima);
 	int l = 0;
 	for (unsigned int k = 0; k < m_cloud->size(); k++)
 	{
-		if (min_slopes(k) > 0)
+		if (steepestSlope)
 		{
-			localMaximumIndexes(l) = k;
-			receivers(k) = k;
-			l++;
+			if (extreme_slopes(k) < 0)
+			{
+				localMaximumIndexes(l) = k;
+				receivers(k) = k;
+				l++;
+			}
+		}
+		else
+		{
+			if (extreme_slopes(k) > 0)
+			{
+				localMaximumIndexes(l) = k;
+				receivers(k) = k;
+				l++;
+			}
 		}
 	}
 
@@ -433,15 +466,7 @@ int G3PointAction::segment_labels_braun_willett(bool useParallelStrategy)
 	m_cloud->showSF(false);
 
 	m_cloud->redrawDisplay();
-	//	m_cloud->prepareDisplayForRefresh();
-
-	//	ccHObject::Container selectedEntities;
-	//	selectedEntities.push_back(cloud);
-
-	//	if (!sfConvertToRandomRGB(selectedEntities, m_app->getMainWindow()))
-	//	{
-	//		ccLog::Error("[G3Point::segment_labels] impossible to convert g3point_label to RGB colors");
-	//	}
+	m_cloud->prepareDisplayForRefresh();
 
 	if (m_app)
 	{
@@ -688,8 +713,8 @@ void G3PointAction::run()
 	query_neighbors(m_cloud, m_app, true);
 
 	// Perform initial segmentation
-	// int nLabels = segment_labels();
 	int nLabels = segment_labels_braun_willett();
+
 	//	int nLabels = segment_labels_steepest_slope();
 
 	m_app->dispToConsole( "[G3Point] initial segmentation: " + QString::number(nLabels) + " labels", ccMainAppInterface::STD_CONSOLE_MESSAGE );
@@ -733,12 +758,12 @@ void G3PointAction::createAction(ccMainAppInterface *appInterface)
 
 	s_g3PointAction->m_app = appInterface;
 	//display dialog
-	s_g3PointAction->m_dlg = new qG3PointDialog();
+	s_g3PointAction->m_dlg = new G3PointDialog();
 	s_g3PointAction->m_dlg->setAttribute(Qt::WA_DeleteOnClose, true);
 	s_g3PointAction->m_dlg->setWindowFlag(Qt::WindowStaysOnTopHint, true);
 	s_g3PointAction->m_dlg->setWindowTitle("G3Point");
 
-	connect(s_g3PointAction->m_dlg, &qG3PointDialog::run, s_g3PointAction, &G3PointAction::run);
+	connect(s_g3PointAction->m_dlg, &G3PointDialog::run, s_g3PointAction, &G3PointAction::run);
 	s_g3PointAction->m_cloud = ccHObjectCaster::ToPointCloud(ent);
 	s_g3PointAction->m_dlg->show();
 }
