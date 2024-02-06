@@ -342,7 +342,7 @@ int G3PointAction::segment_labels_braun_willett(bool useParallelStrategy)
 
 	// if the minimum slope is positive, the receiver is a local maximum
 	int nb_maxima = (min_slopes > 0).count();
-	Eigen::ArrayXi m_localMaximumIndexes = Eigen::ArrayXi::Zero(nb_maxima);
+	m_localMaximumIndexes = Eigen::ArrayXi::Zero(nb_maxima);
 	int l = 0;
 	for (unsigned int k = 0; k < m_cloud->size(); k++)
 	{
@@ -425,7 +425,7 @@ int G3PointAction::segment_labels_braun_willett(bool useParallelStrategy)
 		for (auto i : stack)
 		{
 			m_labels(i) = k;
-			(i) = stack.size();
+			m_labelsnpoint(i) = stack.size();
 			if (g3point_label)
 			{
 				g3point_label->setValue(i, k);
