@@ -26,6 +26,7 @@ private:
 	bool sfConvertToRandomRGB(const ccHObject::Container &selectedEntities, QWidget* parent);
 	void add_to_stack(int index, const Eigen::ArrayXi& n_donors, const Eigen::ArrayXXi& donors, std::vector<int>& stack);
 	int segment_labels(bool useParallelStrategy=true);
+	int cluster_labels();
 	int segment_labels_steepest_slope(bool useParallelStrategy=true);
 	void add_to_stack_braun_willett(int index, const Eigen::ArrayXi& delta, const Eigen::ArrayXi &Di, std::vector<int>& stack, int local_maximum);
 	int segment_labels_braun_willett(bool useParallelStrategy=true);
@@ -43,7 +44,10 @@ private:
 	unsigned char m_bestOctreeLevel = 0;
 	CCCoreLib::DgmOctree::NearestNeighboursSearchStruct m_nNSS;
 	ccMainAppInterface *m_app;
-	Eigen::ArrayXi m_stack;
+	std::vector<std::vector<int>> m_stacks;
+	Eigen::ArrayXi m_labels;
+	Eigen::ArrayXi m_labelsnpoint;
+	Eigen::ArrayXi m_localMaximumIndexes;
 	qG3PointDialog* m_dlg;
 
 	static G3PointAction* s_g3PointAction;

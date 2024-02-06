@@ -214,7 +214,6 @@ int G3PointAction::segment_labels(bool useParallelStrategy)
 	// build the stacks
 	std::cout << "[segment_labels] build the stacks" << std::endl;
 	Eigen::ArrayXi labels = Eigen::ArrayXi::Zero(m_cloud->size());
-	Eigen::ArrayXi labelsk = Eigen::ArrayXi::Zero(m_cloud->size());
 	Eigen::ArrayXi labelsnpoint = Eigen::ArrayXi::Zero(m_cloud->size());
 	std::vector<std::vector<int>> stacks;
 
@@ -246,7 +245,7 @@ int G3PointAction::segment_labels(bool useParallelStrategy)
 		for (auto i : stack)
 		{
 			labels(i) = k;
-			labelsnpoint(i) = m_stack.size();
+			labelsnpoint(i) = stack.size();
 			if (g3point_label)
 			{
 				g3point_label->setValue(i, k);
@@ -287,6 +286,25 @@ int G3PointAction::segment_labels(bool useParallelStrategy)
 	return nLabels;
 }
 
+int G3PointAction::cluster_labels()
+{
+	ccLog::Print("[cluster_labels]");
+	int nlabels = m_stacks.size();
+
+	// Compute the distances between sinks associated to each label
+	Eigen::ArrayXXd D1;
+	D1.resize(nlabels, nlabels);
+	for (int i = 0; i < nlabels; i++)
+	{
+		for (int j = 0; j < nlabels; j++)
+		{
+			D1(i, j) = (*m_cloud->getPoint(m_localMaximumIndexes(i)) - *m_cloud->getPoint(m_localMaximumIndexes(j))).norm();
+		}
+	}
+
+	return 0;
+}
+
 void G3PointAction::add_to_stack_braun_willett(int index, const Eigen::ArrayXi& delta, const Eigen::ArrayXi& Di, std::vector<int>& stack, int local_maximum)
 {
 	stack.push_back(index);
@@ -324,13 +342,13 @@ int G3PointAction::segment_labels_braun_willett(bool useParallelStrategy)
 
 	// if the minimum slope is positive, the receiver is a local maximum
 	int nb_maxima = (min_slopes > 0).count();
-	Eigen::ArrayXi localMaximumIndexes = Eigen::ArrayXi::Zero(nb_maxima);
+	Eigen::ArrayXi m_localMaximumIndexes = Eigen::ArrayXi::Zero(nb_maxima);
 	int l = 0;
 	for (unsigned int k = 0; k < m_cloud->size(); k++)
 	{
 		if (min_slopes(k) > 0)
 		{
-			localMaximumIndexes(l) = k;
+			m_localMaximumIndexes(l) = k;
 			receivers(k) = k;
 			l++;
 		}
@@ -346,13 +364,11 @@ int G3PointAction::segment_labels_braun_willett(bool useParallelStrategy)
 		Dij.push_back(list_of_donors);
 	}
 	std::cout << "[segment_labels_braun_willett] create di and Dij" << std::endl;
-	std::vector<int> di_vec(m_cloud->size());
 	for (unsigned int k = 0; k < m_cloud->size(); k++)
 	{
 		int receiver = receivers(k);
-		di[receiver] = di[receiver] + 1;
-		di_vec[receiver] = di[receiver];
-		Dij[receiver].push_back(k);
+		di[receiver] = di[receiver] + 1; // increment the number of donors of the receiver
+		Dij[receiver].push_back(k); // add the donor the the list of donors of the receiver
 	}
 
 	// build Di, the list of donors
@@ -380,10 +396,6 @@ int G3PointAction::segment_labels_braun_willett(bool useParallelStrategy)
 
 	// build the stacks
 	std::cout << "[segment_labels_braun_willett] build the stacks" << std::endl;
-	Eigen::ArrayXi labels = Eigen::ArrayXi::Zero(m_cloud->size());
-	Eigen::ArrayXi labelsk = Eigen::ArrayXi::Zero(m_cloud->size());
-	Eigen::ArrayXi labelsnpoint = Eigen::ArrayXi::Zero(m_cloud->size());
-	std::vector<std::vector<int>> stacks;
 
 	int sfIdx = m_cloud->getScalarFieldIndexByName("g3point_label");
 	if (sfIdx == -1)
@@ -394,9 +406,9 @@ int G3PointAction::segment_labels_braun_willett(bool useParallelStrategy)
 			ccLog::Error("[G3Point::segment_labels] impossible to create scalar field g3point_label");
 		}
 	}
-
 	CCCoreLib::ScalarField* g3point_label = m_cloud->getScalarField(sfIdx);
-	RGBAColorsTableType randomColors = getRandomColors(localMaximumIndexes.size());
+
+	RGBAColorsTableType randomColors = getRandomColors(m_localMaximumIndexes.size());
 
 	if (!m_cloud->resizeTheRGBTable(false))
 	{
@@ -404,23 +416,23 @@ int G3PointAction::segment_labels_braun_willett(bool useParallelStrategy)
 		return -1;
 	}
 
-	for (int k = 0; k < localMaximumIndexes.size(); k++)
+	for (int k = 0; k < m_localMaximumIndexes.size(); k++)
 	{
-		int localMaximumIndex = localMaximumIndexes(k);
+		int localMaximumIndex = m_localMaximumIndexes(k);
 		std::vector<int> stack;
 		add_to_stack_braun_willett(localMaximumIndex, delta, Di, stack, localMaximumIndex);
 		// labels
 		for (auto i : stack)
 		{
-			labels(i) = k;
-			labelsnpoint(i) = m_stack.size();
+			m_labels(i) = k;
+			(i) = stack.size();
 			if (g3point_label)
 			{
 				g3point_label->setValue(i, k);
 				m_cloud->setPointColor(i, randomColors.getValue(k));
 			}
 		}
-		stacks.push_back(stack);
+		m_stacks.push_back(stack);
 	}
 
 	if (g3point_label)
@@ -449,7 +461,7 @@ int G3PointAction::segment_labels_braun_willett(bool useParallelStrategy)
 		m_app->updateUI();
 	}
 
-	int nLabels = localMaximumIndexes.size();
+	int nLabels = m_localMaximumIndexes.size();
 
 	return nLabels;
 }
@@ -519,7 +531,6 @@ int G3PointAction::segment_labels_steepest_slope(bool useParallelStrategy)
 	// build the stacks
 	std::cout << "[segment_labels] build the stacks" << std::endl;
 	Eigen::ArrayXi labels = Eigen::ArrayXi::Zero(m_cloud->size());
-	Eigen::ArrayXi labelsk = Eigen::ArrayXi::Zero(m_cloud->size());
 	Eigen::ArrayXi labelsnpoint = Eigen::ArrayXi::Zero(m_cloud->size());
 	std::vector<std::vector<int>> stacks;
 
@@ -551,7 +562,7 @@ int G3PointAction::segment_labels_steepest_slope(bool useParallelStrategy)
 		for (auto i : stack)
 		{
 			labels(i) = k;
-			labelsnpoint(i) = m_stack.size();
+			labelsnpoint(i) = stack.size();
 			if (g3point_label)
 			{
 				g3point_label->setValue(i, k);
@@ -682,7 +693,8 @@ void G3PointAction::run()
 	m_neighbors_indexes.resize(m_cloud->size(), m_kNN);
 	m_neighbors_distances.resize(m_cloud->size(), m_kNN);
 	m_neighbors_slopes.resize(m_cloud->size(), m_kNN);
-	m_stack.resize(m_cloud->size());
+	m_labels = Eigen::ArrayXi::Zero(m_cloud->size());
+	m_labelsnpoint = Eigen::ArrayXi::Zero(m_cloud->size());
 
 	// Find neighbors of each point of the cloud
 	query_neighbors(m_cloud, m_app, true);
