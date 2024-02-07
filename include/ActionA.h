@@ -33,6 +33,8 @@ private:
 	int segment_labels_braun_willett(bool useParallelStrategy=true);
 	void get_neighbors_distances_slopes(unsigned index);
 	void compute_node_surfaces();
+	void orient_normals();
+	void compute_normals_and_orient_them();
 	bool query_neighbors(ccPointCloud* cloud, ccMainAppInterface* appInterface, bool useParallelStrategy=true);
 	void run();
 	void setkNN(int kNN);

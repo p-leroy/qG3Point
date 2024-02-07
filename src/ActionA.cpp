@@ -22,6 +22,8 @@
 #include <qG3PointDialog.h>
 #include <QPushButton>
 
+#include <mlpack.hpp>
+
 namespace G3Point
 {
 G3PointAction* G3PointAction::s_g3PointAction;
@@ -286,9 +288,27 @@ int G3PointAction::segment_labels(bool useParallelStrategy)
 	return nLabels;
 }
 
+class mySearch
+{
+public:
+	mySearch() {}
+
+	void Search(const arma::mat& queryPoints,
+				const mlpack::math::Range& range,
+				std::vector<std::vector<size_t>>& neighbors,
+				std::vector<std::vector<double>>& distances);
+};
+
+void mySearch::Search(const arma::mat& queryPoints,
+					  const mlpack::math::Range& range,
+					  std::vector<std::vector<size_t>>& neighbors,
+					  std::vector<std::vector<double>>& distances)
+{
+
+}
+
 int G3PointAction::compute_mean_angle()
 {
-	// Determine if the normals at the border of labels are similar
 	// Find the indexborder nodes (no donor and many other labels in the neighbourhood)
 	Eigen::ArrayXXi duplicated_labels(m_cloud->size(), m_kNN);
 	for (int n = 0; n < m_kNN; n++)
@@ -323,6 +343,26 @@ int G3PointAction::compute_mean_angle()
 
 	std::cout << "indborder" << std::endl;
 	std::cout << indborder.block(0, 0, 10, 1) << std::endl;
+
+	// Compute the angle of the normal vector between the neighbours of each grain / label
+	int nlabels = m_stacks.size();
+	Eigen::ArrayXXi A = Eigen::ArrayXXi::Zero(nlabels, nlabels);
+	Eigen::ArrayXXi N = Eigen::ArrayXXi::Zero(nlabels, nlabels);
+
+	for (auto i : indborder)
+	{
+		auto j = m_neighbors_indexes(i, Eigen::all);  // indexes of the neighbourhood of i
+		// Take the normals vector for i and j (duplicate the normal vector of i to have the same size as for j)
+//		P1 = numpy.tile(normals[i, :], (params.knn, 1));
+//		P2 = m_normals(j, Eigen::all);
+		// Compute the angle between the normal of i and the normals of j
+		// Add this angle to the angle matrix between each label
+//		A[labels[i], labels[j]] = A[labels[i], labels[j]] + angle_rot_2_vec_mat(P1, P2)
+		// Number of occurrences
+//		N[labels[i], labels[j]] = N[labels[i], labels[j]] + 1
+	}
+
+	mlpack::DBSCAN(1, 1);
 }
 
 int G3PointAction::cluster_labels()
@@ -724,6 +764,32 @@ void G3PointAction::get_neighbors_distances_slopes(unsigned index)
 void G3PointAction::compute_node_surfaces()
 {
 	m_area = M_PI * m_neighbors_distances.rowwise().minCoeff().square();
+}
+
+void G3PointAction::orient_normals()
+{
+	// Flip the normals so they are oriented towards the sensor center
+	// x,y,z: points
+	// u,v,w: normals
+	// ox,oy,oz: sensor center
+
+//	p1 = sensor_center - points
+//	p2 = normals
+
+// Flip the normals if they are not pointing towards the sensor
+//angle = np.arctan2(np.linalg.norm(np.cross(p1, p2), axis=1), np.sum(p1 * p2, axis=1))
+//index = (angle > np.pi / 2) | (angle < -np.pi / 2)
+//normals[index] = -normals[index]  # invert normal
+
+//return normals
+}
+
+void G3PointAction::compute_normals_and_orient_them()
+{
+//	pcd.estimate_normals(search_param=o3d.geometry.KDTreeSearchParamKNN(params.knn))
+//	centroid = np.mean(xyz, axis=0)
+//	sensor_center = np.array([centroid[0], centroid[1], 1000])
+//	normals = orient_normals(xyz, np.asarray(pcd.normals), sensor_center)
 }
 
 bool G3PointAction::query_neighbors(ccPointCloud* cloud, ccMainAppInterface* appInterface, bool useParallelStrategy)
