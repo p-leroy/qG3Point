@@ -22,7 +22,8 @@
 #include <G3PointDialog.h>
 #include <QPushButton>
 
-#include <mlpack.hpp>
+// #include <mlpack.hpp>
+#include <open3d/geometry/PointCloud.h>>
 
 namespace G3Point
 {
@@ -288,24 +289,24 @@ int G3PointAction::segment_labels(bool useParallelStrategy)
 	return nLabels;
 }
 
-class mySearch
-{
-public:
-	mySearch() {}
+// class mySearch
+// {
+// public:
+// 	mySearch() {}
 
-	void Search(const arma::mat& queryPoints,
-				const mlpack::math::Range& range,
-				std::vector<std::vector<size_t>>& neighbors,
-				std::vector<std::vector<double>>& distances);
-};
+// 	void Search(const arma::mat& queryPoints,
+// 				const mlpack::math::Range& range,
+// 				std::vector<std::vector<size_t>>& neighbors,
+// 				std::vector<std::vector<double>>& distances);
+// };
 
-void mySearch::Search(const arma::mat& queryPoints,
-					  const mlpack::math::Range& range,
-					  std::vector<std::vector<size_t>>& neighbors,
-					  std::vector<std::vector<double>>& distances)
-{
+// void mySearch::Search(const arma::mat& queryPoints,
+// 					  const mlpack::math::Range& range,
+// 					  std::vector<std::vector<size_t>>& neighbors,
+// 					  std::vector<std::vector<double>>& distances)
+// {
 
-}
+// }
 
 int G3PointAction::compute_mean_angle()
 {
@@ -361,8 +362,6 @@ int G3PointAction::compute_mean_angle()
 		// Number of occurrences
 //		N[labels[i], labels[j]] = N[labels[i], labels[j]] + 1
 	}
-
-	mlpack::DBSCAN(1, 1);
 }
 
 int G3PointAction::cluster_labels()
@@ -431,6 +430,8 @@ int G3PointAction::cluster_labels()
 	}
 
 	compute_mean_angle();
+
+	// mlpack::DBSCAN(1, 1);
 
 	return 0;
 }
@@ -809,12 +810,98 @@ void G3PointAction::orient_normals()
 //return normals
 }
 
-void G3PointAction::compute_normals_and_orient_them()
+bool G3PointAction::compute_normals_and_orient_them()
 {
 //	pcd.estimate_normals(search_param=o3d.geometry.KDTreeSearchParamKNN(params.knn))
 //	centroid = np.mean(xyz, axis=0)
 //	sensor_center = np.array([centroid[0], centroid[1], 1000])
 //	normals = orient_normals(xyz, np.asarray(pcd.normals), sensor_center)
+
+	double radius = 1.; // one should set the radius value
+
+	CCCoreLib::LOCAL_MODEL_TYPES model = CCCoreLib::QUADRIC;
+	ccNormalVectors::Orientation  orientation = ccNormalVectors::Orientation::UNDEFINED;
+
+	orientation = ccNormalVectors::Orientation::PLUS_Z;
+	model = CCCoreLib::LOCAL_MODEL_TYPES::LS;
+
+	QScopedPointer<ccProgressDialog> progressDialog(nullptr);
+
+	if (!m_cloud->getOctree())
+	{
+		if (!m_cloud->computeOctree(progressDialog.data()))
+		{
+			ccLog::Error("Failed to compute octree for cloud " + m_cloud->getName());
+			return false;
+		}
+	}
+
+		float thisCloudRadius = radius;
+		if (std::isnan(thisCloudRadius))
+		{
+			ccOctree::BestRadiusParams params;
+			{
+				params.aimedPopulationPerCell = 16;
+				params.aimedPopulationRange = 4;
+				params.minCellPopulation = 6;
+				params.minAboveMinRatio = 0.97;
+			}
+			thisCloudRadius = ccOctree::GuessBestRadius(m_cloud, params, m_cloud->getOctree().data());
+			if (thisCloudRadius == 0)
+			{
+				return ccLog::Error("Failed to determine best normal radius for cloud " + m_cloud->getName());
+			}
+			ccLog::Print("Cloud " + m_cloud->getName() + " radius = " + QString::number(thisCloudRadius));
+		}
+
+		ccLog::Print("computeNormalsWithOctree started...");
+		bool success = m_cloud->computeNormalsWithOctree(model, orientation, thisCloudRadius, progressDialog.data());
+		if(success)
+		{
+			ccLog::Print("computeNormalsWithOctree success");
+		}
+		else
+		{
+			ccLog::Error("computeNormalsWithOctree failed");
+			return false;
+		}
+
+	return true;
+}
+
+bool G3PointAction::compute_normals_and_orient_them_open3d()
+{
+	// create an open3D point cloud from the original point cloud
+	std::vector<Eigen::Vector3d> points(m_cloud->size());
+	for (int index =0; index < points.size(); index++) // copy all points
+	{
+		points[index] = Eigen::Vector3d(m_cloud->getPoint(index)->x, m_cloud->getPoint(index)->y, m_cloud->getPoint(index)->z);
+	}
+	open3d::geometry::PointCloud pcd(points); // create the cloud
+
+	// compute the normals
+	pcd.EstimateNormals(open3d::geometry::KDTreeSearchParamKNN(m_kNN));
+
+	// set the normals to the ccPointCloud
+	if (m_cloud->hasNormals())
+	{
+		ccLog::Error("[G3PointAction::compute_normals_and_orient_them_open3d] the cloud already has normals");
+	}
+
+	//we 'compress' each normal
+	int pointCount = m_cloud->size();
+	NormsIndexesTableType theNormsCodes = NormsIndexesTableType();
+	std::fill(theNormsCodes.begin(), theNormsCodes.end(), 0);
+	for (unsigned i = 0; i < pointCount; i++)
+	{
+		CCVector3 N(pcd.normals_[i].x(), pcd.normals_[i].y(), pcd.normals_[i].z());
+		CompressedNormType nCode = ccNormalVectors::GetNormIndex(N);
+		theNormsCodes.setValue(i, nCode);
+	}
+
+	m_cloud->resizeTheNormsTable();
+
+	return true;
 }
 
 bool G3PointAction::query_neighbors(ccPointCloud* cloud, ccMainAppInterface* appInterface, bool useParallelStrategy)

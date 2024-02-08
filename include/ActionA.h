@@ -34,7 +34,8 @@ private:
 	void get_neighbors_distances_slopes(unsigned index);
 	void compute_node_surfaces();
 	void orient_normals();
-	void compute_normals_and_orient_them();
+	bool compute_normals_and_orient_them();
+	bool compute_normals_and_orient_them_open3d();
 	bool query_neighbors(ccPointCloud* cloud, ccMainAppInterface* appInterface, bool useParallelStrategy=true);
 	void run();
 	void setkNN(int kNN);
@@ -56,7 +57,7 @@ private:
 	Eigen::ArrayXi m_labelsnpoint;
 	Eigen::ArrayXi m_localMaximumIndexes;
 	Eigen::ArrayXi m_ndon;
-	qG3PointDialog* m_dlg;
+	G3PointDialog* m_dlg;
 
 	static G3PointAction* s_g3PointAction;
 };
