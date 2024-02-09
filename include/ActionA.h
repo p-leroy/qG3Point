@@ -34,7 +34,7 @@ private:
 	void get_neighbors_distances_slopes(unsigned index);
 	void compute_node_surfaces();
 	void orient_normals();
-	bool compute_normals_and_orient_them();
+	bool compute_normals_and_orient_them_cloudcompare();
 	bool compute_normals_and_orient_them_open3d();
 	bool query_neighbors(ccPointCloud* cloud, ccMainAppInterface* appInterface, bool useParallelStrategy=true);
 	void run();

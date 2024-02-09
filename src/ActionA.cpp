@@ -9,6 +9,7 @@
 #include <ccPointCloud.h>
 #include <ccScalarField.h>
 #include <CCGeom.h>
+#include <ccNormalVectors.h>
 
 #include <QMainWindow>
 #include <QCoreApplication>
@@ -810,7 +811,7 @@ void G3PointAction::orient_normals()
 //return normals
 }
 
-bool G3PointAction::compute_normals_and_orient_them()
+bool G3PointAction::compute_normals_and_orient_them_cloudcompare()
 {
 //	pcd.estimate_normals(search_param=o3d.geometry.KDTreeSearchParamKNN(params.knn))
 //	centroid = np.mean(xyz, axis=0)
@@ -882,24 +883,47 @@ bool G3PointAction::compute_normals_and_orient_them_open3d()
 	// compute the normals
 	pcd.EstimateNormals(open3d::geometry::KDTreeSearchParamKNN(m_kNN));
 
-	// set the normals to the ccPointCloud
-	if (m_cloud->hasNormals())
+	std::cout << "normals << std::endl";
+	for (int i = 0; i < 10; i++)
 	{
-		ccLog::Error("[G3PointAction::compute_normals_and_orient_them_open3d] the cloud already has normals");
+		std::cout << pcd.normals_[i].x() << " " << pcd.normals_[i].y() << " " << pcd.normals_[i].z() << std::endl;
 	}
 
-	//we 'compress' each normal
+	// we 'compress' each normal
 	int pointCount = m_cloud->size();
 	NormsIndexesTableType theNormsCodes = NormsIndexesTableType();
 	std::fill(theNormsCodes.begin(), theNormsCodes.end(), 0);
-	for (unsigned i = 0; i < pointCount; i++)
+	for (unsigned index = 0; index < pointCount; index++)
 	{
-		CCVector3 N(pcd.normals_[i].x(), pcd.normals_[i].y(), pcd.normals_[i].z());
+		CCVector3 N(pcd.normals_[index].x(), pcd.normals_[index].y(), pcd.normals_[index].z());
 		CompressedNormType nCode = ccNormalVectors::GetNormIndex(N);
-		theNormsCodes.setValue(i, nCode);
+		theNormsCodes.setValue(index, nCode);
 	}
 
+	// preferred orientation
+	ccNormalVectors::Orientation preferredOrientation = ccNormalVectors::PLUS_Z;
+	ccNormalVectors::UpdateNormalOrientations(m_cloud, theNormsCodes, preferredOrientation);
+
+	ccLog::Error("[G3PointAction::compute_normals_and_orient_them_open3d] set the normals computed with Open3D to the point cloud");
 	m_cloud->resizeTheNormsTable();
+
+	//we hide normals during process
+	m_cloud->showNormals(false);
+
+	// set the normals
+	for (unsigned j = 0; j < theNormsCodes.currentSize(); j++)
+	{
+		m_cloud->setPointNormalIndex(j, theNormsCodes.getValue(j));
+	}
+
+	std::cout << "normals CloudCompare" << std::endl;
+	for (int i = 0; i < 10; i++)
+	{
+		std::cout << m_cloud->getNormal(i)->x << " " << m_cloud->getNormal(i)->y << " " << m_cloud->getNormal(i)->z << std::endl;
+	}
+
+	//we restore the normals
+	m_cloud->showNormals(true);
 
 	return true;
 }
@@ -976,6 +1000,8 @@ void G3PointAction::run()
 	query_neighbors(m_cloud, m_app, true);
 
 	compute_node_surfaces();
+
+	compute_normals_and_orient_them_open3d();
 
 	// Perform initial segmentation
 	int nLabels = segment_labels_braun_willett();
