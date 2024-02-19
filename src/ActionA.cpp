@@ -411,7 +411,7 @@ int G3PointAction::cluster_labels()
 	// If labels are neighbours, set Nneigh to 1
 	Eigen::ArrayXXi Nneigh = Eigen::ArrayXXi::Zero(nlabels, nlabels);
 	k = 0;
-	for (auto &stack : m_stacks)
+	for (auto& stack : m_stacks)
 	{
 		Eigen::ArrayXXi labels(stack.size(), m_kNN);
 		for (int index = 0; index < stack.size(); index++)
@@ -883,7 +883,7 @@ bool G3PointAction::compute_normals_and_orient_them_open3d()
 	// compute the normals
 	pcd.EstimateNormals(open3d::geometry::KDTreeSearchParamKNN(m_kNN));
 
-	std::cout << "normals << std::endl";
+	std::cout << "normals" << std::endl;
 	for (int i = 0; i < 10; i++)
 	{
 		std::cout << pcd.normals_[i].x() << " " << pcd.normals_[i].y() << " " << pcd.normals_[i].z() << std::endl;
@@ -892,8 +892,13 @@ bool G3PointAction::compute_normals_and_orient_them_open3d()
 	// we 'compress' each normal
 	int pointCount = m_cloud->size();
 	NormsIndexesTableType theNormsCodes = NormsIndexesTableType();
+	if (!theNormsCodes.resizeSafe(pointCount))
+	{
+		ccLog::Error("[G3PointAction::compute_normals_and_orient_them_open3d] failed to allocate theNormCodes");
+		return false;
+	}
 	std::fill(theNormsCodes.begin(), theNormsCodes.end(), 0);
-	for (unsigned index = 0; index < pointCount; index++)
+	for (int index = 0; index < pointCount; index++)
 	{
 		CCVector3 N(pcd.normals_[index].x(), pcd.normals_[index].y(), pcd.normals_[index].z());
 		CompressedNormType nCode = ccNormalVectors::GetNormIndex(N);
@@ -904,7 +909,7 @@ bool G3PointAction::compute_normals_and_orient_them_open3d()
 	ccNormalVectors::Orientation preferredOrientation = ccNormalVectors::PLUS_Z;
 	ccNormalVectors::UpdateNormalOrientations(m_cloud, theNormsCodes, preferredOrientation);
 
-	ccLog::Error("[G3PointAction::compute_normals_and_orient_them_open3d] set the normals computed with Open3D to the point cloud");
+	ccLog::Print("[G3PointAction::compute_normals_and_orient_them_open3d] set the normals computed with Open3D to the point cloud");
 	m_cloud->resizeTheNormsTable();
 
 	//we hide normals during process
@@ -1008,7 +1013,7 @@ void G3PointAction::run()
 
 	//	int nLabels = segment_labels_steepest_slope();
 
-	cluster_labels();
+	// cluster_labels();
 
 	m_app->dispToConsole( "[G3Point] initial segmentation: " + QString::number(nLabels) + " labels", ccMainAppInterface::STD_CONSOLE_MESSAGE );
 
