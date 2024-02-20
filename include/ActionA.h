@@ -26,26 +26,30 @@ private:
 	bool sfConvertToRandomRGB(const ccHObject::Container &selectedEntities, QWidget* parent);
 	void add_to_stack(int index, const Eigen::ArrayXi& n_donors, const Eigen::ArrayXXi& donors, std::vector<int>& stack);
 	int segment_labels(bool useParallelStrategy=true);
-	int compute_mean_angle();
+	double angle_rot_2_vec_mat(const Eigen::Vector3d &a, const Eigen::Vector3d &b);
+	Eigen::ArrayXXd compute_mean_angle();
+	void get_sink_indexes();
 	int cluster_labels();
 	int segment_labels_steepest_slope(bool useParallelStrategy=true);
 	void add_to_stack_braun_willett(int index, const Eigen::ArrayXi& delta, const Eigen::ArrayXi &Di, std::vector<int>& stack, int local_maximum);
 	int segment_labels_braun_willett(bool useParallelStrategy=true);
 	void get_neighbors_distances_slopes(unsigned index);
 	void compute_node_surfaces();
-	void orient_normals();
 	bool compute_normals_and_orient_them_cloudcompare();
-	bool compute_normals_and_orient_them_open3d();
+	void orient_normals(const Eigen::Vector3d &sensorCenter);
+	bool compute_normals_with_open3d();
 	bool query_neighbors(ccPointCloud* cloud, ccMainAppInterface* appInterface, bool useParallelStrategy=true);
 	void run();
 	void setkNN(int kNN);
 
 	int m_kNN = 20;
-	double rad_factor = 0.6;
+	double m_radiusFactor = 0.6;
+	double m_maxAngle1 = 60;
 
 	Eigen::ArrayXXi m_neighbors_indexes;
 	Eigen::ArrayXXd m_neighbors_distances;
 	Eigen::ArrayXXd m_neighbors_slopes;
+	Eigen::ArrayXXd m_normals;
 	Eigen::ArrayXd m_area;
 	ccOctree::Shared m_octree;
 	ccPointCloud* m_cloud;

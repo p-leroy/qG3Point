@@ -23,8 +23,13 @@
 #include <G3PointDialog.h>
 #include <QPushButton>
 
-// #include <mlpack.hpp>
-#include <open3d/geometry/PointCloud.h>>
+#include <open3d/geometry/PointCloud.h>
+
+#include <Eigen/Geometry>
+
+#include <math.h>
+
+#include <set>
 
 namespace G3Point
 {
@@ -268,17 +273,6 @@ int G3PointAction::segment_labels(bool useParallelStrategy)
 	m_cloud->showColors(true);
 	m_cloud->showSF(false);
 
-//	m_cloud->redrawDisplay();
-//	m_cloud->prepareDisplayForRefresh();
-
-//	ccHObject::Container selectedEntities;
-//	selectedEntities.push_back(cloud);
-
-//	if (!sfConvertToRandomRGB(selectedEntities, m_app->getMainWindow()))
-//	{
-//		ccLog::Error("[G3Point::segment_labels] impossible to convert g3point_label to RGB colors");
-//	}
-
 	if (m_app)
 	{
 		m_app->refreshAll();
@@ -290,26 +284,22 @@ int G3PointAction::segment_labels(bool useParallelStrategy)
 	return nLabels;
 }
 
-// class mySearch
-// {
-// public:
-// 	mySearch() {}
+double G3PointAction::angle_rot_2_vec_mat(const Eigen::Vector3d& a, const Eigen::Vector3d& b)
+{
+	double angle;
+	Eigen::Vector3d c;
+	double d;
 
-// 	void Search(const arma::mat& queryPoints,
-// 				const mlpack::math::Range& range,
-// 				std::vector<std::vector<size_t>>& neighbors,
-// 				std::vector<std::vector<double>>& distances);
-// };
+	c = a.cross(b);
 
-// void mySearch::Search(const arma::mat& queryPoints,
-// 					  const mlpack::math::Range& range,
-// 					  std::vector<std::vector<size_t>>& neighbors,
-// 					  std::vector<std::vector<double>>& distances)
-// {
+	d = a.dot(b);
 
-// }
+	angle = atan2(c.norm(), d) * 180 / M_PI;
 
-int G3PointAction::compute_mean_angle()
+	return angle;
+}
+
+Eigen::ArrayXXd G3PointAction::compute_mean_angle()
 {
 	// Find the indexborder nodes (no donor and many other labels in the neighbourhood)
 	Eigen::ArrayXXi duplicated_labels(m_cloud->size(), m_kNN);
@@ -329,7 +319,7 @@ int G3PointAction::compute_mean_angle()
 	Eigen::ArrayXi temp = m_kNN - (labels_of_neighbors == duplicated_labels).cast<int>().rowwise().sum();
 	auto condition = ((temp >= m_kNN / 4) && (m_ndon == 0));
 	Eigen::ArrayXi indborder(condition.count());
-	std::cout << "condition.count() " << condition.count() << std::endl;
+	// std::cout << "condition.count() " << condition.count() << std::endl;
 	int l = 0;
 	for (int c = 0; c < condition.size(); c++)
 	{
@@ -340,37 +330,87 @@ int G3PointAction::compute_mean_angle()
 		}
 	}
 
-	std::cout << "temp" << std::endl;
-	std::cout << condition.block(10, 0, 20, 1) << std::endl;
-
-	std::cout << "indborder" << std::endl;
-	std::cout << indborder.block(0, 0, 10, 1) << std::endl;
+	// std::cout << "indborder" << std::endl;
+	// std::cout << indborder.block(0, 0, 10, 1) << std::endl;
 
 	// Compute the angle of the normal vector between the neighbours of each grain / label
 	int nlabels = m_stacks.size();
-	Eigen::ArrayXXi A = Eigen::ArrayXXi::Zero(nlabels, nlabels);
+	Eigen::ArrayXXd A = Eigen::ArrayXXd::Zero(nlabels, nlabels);
 	Eigen::ArrayXXi N = Eigen::ArrayXXi::Zero(nlabels, nlabels);
 
 	for (auto i : indborder)
 	{
-		auto j = m_neighbors_indexes(i, Eigen::all);  // indexes of the neighbourhood of i
-		// Take the normals vector for i and j (duplicate the normal vector of i to have the same size as for j)
-//		P1 = numpy.tile(normals[i, :], (params.knn, 1));
-//		P2 = m_normals(j, Eigen::all);
-		// Compute the angle between the normal of i and the normals of j
-		// Add this angle to the angle matrix between each label
-//		A[labels[i], labels[j]] = A[labels[i], labels[j]] + angle_rot_2_vec_mat(P1, P2)
-		// Number of occurrences
-//		N[labels[i], labels[j]] = N[labels[i], labels[j]] + 1
+		auto neighbors = m_neighbors_indexes(i, Eigen::all);  // indexes of the neighbors of i
+		for (auto j : neighbors)
+		{
+			// Take the normals vector for i and j (duplicate the normal vector of i to have the same size as for j)
+			Eigen::Vector3d N1(m_normals(i, Eigen::all));
+			Eigen::Vector3d N2(m_normals(j, Eigen::all));
+			double angle = angle_rot_2_vec_mat(N1, N2);
+			if (i < 27)
+			{
+				// std::cout << "INDBORDER i " << i << " j " "" << j << std::endl;
+				// std::cout << angle << std::endl;
+			}
+			A(m_labels(i), m_labels(j)) = A(m_labels(i), m_labels(j)) + angle;
+			N(m_labels(i), m_labels(j)) = N(m_labels(i), m_labels(j)) + 1;
+		}
+		if (i < 31)
+		{
+			// std::cout << "INDBORDER i " << i << std::endl;
+			// std::cout << A.block(0, 0, 10, 10) << std::endl;
+		}
 	}
+
+	// std::cout << "A" << std::endl;
+	// std::cout << A.block(0, 0, 10, 10) << std::endl;
+
+	/// compute the means
+	for (int r = 0; r < nlabels; r++)
+	{
+		for(int c = 0; c < nlabels; c++)
+		{
+			if (N(r, c) != 0)
+			{
+				A(r, c) = A(r, c) / N(r, c);
+			}
+		}
+	}
+
+	// std::cout << "A mean" << std::endl;
+	// std::cout << A.block(0, 0, 10, 10) << std::endl;
+
+	return A;
+}
+
+void G3PointAction::get_sink_indexes()
+{
+	int nlabels = m_stacks.size();
+
+	Eigen::ArrayXi localMaximumIndexes = Eigen::ArrayXi::Ones(nlabels) * (-1);
+
+	for (int k = 0; k < nlabels; k++)
+	{
+		auto& stack = m_stacks[k];
+		int nPoints = stack.size();
+		Eigen::ArrayXd elevations(nPoints);
+		for (int index = 0; index < nPoints; index++)
+		{
+			const CCVector3* point = m_cloud->getPoint(index);
+			elevations(index) = point->z;
+		}
+		Eigen::Index maxIndex;
+		elevations.maxCoeff(&maxIndex);
+		localMaximumIndexes(k) = stack[maxIndex];
+	}
+
+	m_localMaximumIndexes = localMaximumIndexes;
 }
 
 int G3PointAction::cluster_labels()
 {
 	ccLog::Print("[cluster_labels]");
 	int nlabels = m_stacks.size();
-
-	std::cout << "COMPARE VALUES " << nlabels << " " << m_localMaximumIndexes.size() << std::endl;
 
 	// Compute the distances between the sinks associated to each label
 	Eigen::ArrayXXd D1(nlabels, nlabels);
@@ -401,7 +441,7 @@ int G3PointAction::cluster_labels()
 
 	// If the radius of the sink is above the distance to the other sink (by a factor of rad_factor), set Dist to 1
 	Eigen::ArrayXXi Dist = Eigen::ArrayXXi::Zero(nlabels, nlabels);
-	Dist = (rad_factor * D2 > D1).select(1, Dist);
+	Dist = (m_radiusFactor * D2 > D1).select(1, Dist);
 	std::cout << "Dist" << std::endl;
 	for (int i = 0; i < 10; i++)  // set the values of the diagonal to 0
 	{
@@ -430,9 +470,68 @@ int G3PointAction::cluster_labels()
 		k++;
 	}
 
-	compute_mean_angle();
+	Eigen::ArrayXXd A = compute_mean_angle();
 
-	// mlpack::DBSCAN(1, 1);
+	// merge labels if sinks are
+	// => close to each other (Dist == 1)
+	// => neighbours (Nneigh == 1)
+	// => normals are similar
+
+	std::cout << "\n\nDist" << std::endl;
+	std::cout << Dist.block(0, 0, 10, 10) << std::endl;
+	std::cout << "\n\nNneigh" << std::endl;
+	std::cout << Nneigh.block(0, 0, 10, 10) << std::endl;
+	std::cout << "\n\nA" << std::endl;
+	std::cout << A.block(0, 0, 10, 10) << std::endl;
+
+	std::vector<std::vector<int>> newStacks;
+	Eigen::ArrayXi newLabels = Eigen::ArrayXi::Ones(nlabels) * (-1);
+	int countNewLabels = 0;
+
+	std::vector<int>* newStack;
+	for (int label = 0; label < nlabels; label++)
+	{
+		int newLabel = newLabels(label);
+		if (newLabel == -1)
+		{
+			newLabel = countNewLabels;
+			newLabels(label) = newLabel;
+			countNewLabels++;
+			newStacks.push_back(m_stacks[label]); // add the stack to the newStacks
+			newStack = &newStacks.back();
+		}
+		else
+		{
+			newStack = &newStacks[newLabel]; // we may have to extend the stack of the label
+		}
+		for (int otherLabel = 0; otherLabel < nlabels; otherLabel++)
+		{
+
+			if (otherLabel == label)
+			{
+				continue; // do not try to merge a label with itself
+			}
+
+			// shall we merge otherLabel with label?
+			if ((Dist(label, otherLabel) == 1) && (Nneigh(label, otherLabel) == 1) && (A(label, otherLabel) <= m_maxAngle1))
+			{
+				// merge otherLabel into label
+				newLabels(otherLabel) = newLabel; // update the label value
+				std::vector<int>& otherStack = m_stacks[otherLabel];
+				newStack->insert(newStack->end(), otherStack.begin(), otherStack.end()); // add the stack to the label stack
+			}
+		}
+	}
+
+	std::cout << "m_stacks.size() " << m_stacks.size() << std::endl;
+	std::cout << "newStacks.size() " << newStacks.size() << std::endl;
+	for (int k = 0; k < 10; k++)
+	{
+		std::cout << m_stacks[k].size() << " " << newStacks[k].size() << std::endl;
+	}
+
+	m_stacks = newStacks;
+	m_labels = newLabels;
 
 	return 0;
 }
@@ -495,7 +594,7 @@ int G3PointAction::segment_labels_braun_willett(bool useParallelStrategy)
 	{
 		nb_maxima = (extreme_slopes > 0).count();
 	}
-	Eigen::ArrayXi localMaximumIndexes = Eigen::ArrayXi::Zero(nb_maxima);
+	m_localMaximumIndexes = Eigen::ArrayXi::Zero(nb_maxima);
 	int l = 0;
 	for (unsigned int k = 0; k < m_cloud->size(); k++)
 	{
@@ -503,7 +602,7 @@ int G3PointAction::segment_labels_braun_willett(bool useParallelStrategy)
 		{
 			if (extreme_slopes(k) < 0)
 			{
-				localMaximumIndexes(l) = k;
+				m_localMaximumIndexes(l) = k;
 				receivers(k) = k;
 				l++;
 			}
@@ -512,7 +611,7 @@ int G3PointAction::segment_labels_braun_willett(bool useParallelStrategy)
 		{
 			if (extreme_slopes(k) > 0)
 			{
-				localMaximumIndexes(l) = k;
+				m_localMaximumIndexes(l) = k;
 				receivers(k) = k;
 				l++;
 			}
@@ -652,13 +751,13 @@ int G3PointAction::segment_labels_steepest_slope(bool useParallelStrategy)
 
 	// if the minimum slope is positive, the receiver is a base level node
 	int nb_maxima = (steepest_slopes < 0).count();
-	Eigen::ArrayXi localMaximumIndexes = Eigen::ArrayXi::Zero(nb_maxima);
+	m_localMaximumIndexes = Eigen::ArrayXi::Zero(nb_maxima);
 	int l = 0;
 	for (unsigned int k = 0; k < m_cloud->size(); k++)
 	{
 		if (steepest_slopes(k) < 0)
 		{
-			localMaximumIndexes(l) = k;
+			m_localMaximumIndexes(l) = k;
 			receivers(k) = k;
 			l++;
 		}
@@ -704,7 +803,7 @@ int G3PointAction::segment_labels_steepest_slope(bool useParallelStrategy)
 	}
 
 	CCCoreLib::ScalarField* g3point_label = m_cloud->getScalarField(sfIdx);
-	RGBAColorsTableType randomColors = getRandomColors(localMaximumIndexes.size());
+	RGBAColorsTableType randomColors = getRandomColors(m_localMaximumIndexes.size());
 
 	if (!m_cloud->resizeTheRGBTable(false))
 	{
@@ -712,9 +811,9 @@ int G3PointAction::segment_labels_steepest_slope(bool useParallelStrategy)
 		return -1;
 	}
 
-	for (int k = 0; k < localMaximumIndexes.size(); k++)
+	for (int k = 0; k < m_localMaximumIndexes.size(); k++)
 	{
-		int localMaximumIndex = localMaximumIndexes(k);
+		int localMaximumIndex = m_localMaximumIndexes(k);
 		std::vector<int> stack;
 		add_to_stack(localMaximumIndex, nDonors, donors, stack);
 		// labels
@@ -757,7 +856,7 @@ int G3PointAction::segment_labels_steepest_slope(bool useParallelStrategy)
 		m_app->updateUI();
 	}
 
-	int nLabels = localMaximumIndexes.size();
+	int nLabels = m_localMaximumIndexes.size();
 
 	return nLabels;
 }
@@ -793,31 +892,8 @@ void G3PointAction::compute_node_surfaces()
 	m_area = M_PI * m_neighbors_distances.rowwise().minCoeff().square();
 }
 
-void G3PointAction::orient_normals()
-{
-	// Flip the normals so they are oriented towards the sensor center
-	// x,y,z: points
-	// u,v,w: normals
-	// ox,oy,oz: sensor center
-
-//	p1 = sensor_center - points
-//	p2 = normals
-
-// Flip the normals if they are not pointing towards the sensor
-//angle = np.arctan2(np.linalg.norm(np.cross(p1, p2), axis=1), np.sum(p1 * p2, axis=1))
-//index = (angle > np.pi / 2) | (angle < -np.pi / 2)
-//normals[index] = -normals[index]  # invert normal
-
-//return normals
-}
-
 bool G3PointAction::compute_normals_and_orient_them_cloudcompare()
 {
-//	pcd.estimate_normals(search_param=o3d.geometry.KDTreeSearchParamKNN(params.knn))
-//	centroid = np.mean(xyz, axis=0)
-//	sensor_center = np.array([centroid[0], centroid[1], 1000])
-//	normals = orient_normals(xyz, np.asarray(pcd.normals), sensor_center)
-
 	double radius = 1.; // one should set the radius value
 
 	CCCoreLib::LOCAL_MODEL_TYPES model = CCCoreLib::QUADRIC;
@@ -870,7 +946,26 @@ bool G3PointAction::compute_normals_and_orient_them_cloudcompare()
 	return true;
 }
 
-bool G3PointAction::compute_normals_and_orient_them_open3d()
+void G3PointAction::orient_normals(const Eigen::Vector3d& sensorCenter)
+{
+	int pointCloud = m_cloud->size();
+
+	for (int i = 0; i < pointCloud; i++)
+	{
+		const CCVector3 *point = m_cloud->getPoint(i);
+		Eigen::Vector3d P1 = sensorCenter - Eigen::Vector3d(point->x, point->y, point->z);
+		Eigen::Vector3d P2 = m_normals(i, Eigen::all);
+		double angle = atan2(P1.cross(P2).norm(), P1.dot(P2));
+		if ((angle < - M_PI / 2) || (angle > M_PI / 2))
+		{
+			m_normals(i, 0) = -m_normals(i, 0);
+			m_normals(i, 1) = -m_normals(i, 1);
+			m_normals(i, 2) = -m_normals(i, 2);
+		}
+	}
+}
+
+bool G3PointAction::compute_normals_with_open3d()
 {
 	// create an open3D point cloud from the original point cloud
 	std::vector<Eigen::Vector3d> points(m_cloud->size());
@@ -927,8 +1022,12 @@ bool G3PointAction::compute_normals_and_orient_them_open3d()
 		std::cout << m_cloud->getNormal(i)->x << " " << m_cloud->getNormal(i)->y << " " << m_cloud->getNormal(i)->z << std::endl;
 	}
 
-	//we restore the normals
-	m_cloud->showNormals(true);
+	for (int i = 0; i < pointCount; i++)
+	{
+		m_normals(i, 0) = pcd.normals_[i].x();
+		m_normals(i, 1) = pcd.normals_[i].y();
+		m_normals(i, 2) = pcd.normals_[i].z();
+	}
 
 	return true;
 }
@@ -997,6 +1096,7 @@ void G3PointAction::run()
 	m_neighbors_indexes.resize(m_cloud->size(), m_kNN);
 	m_neighbors_distances.resize(m_cloud->size(), m_kNN);
 	m_neighbors_slopes.resize(m_cloud->size(), m_kNN);
+	m_normals.resize(m_cloud->size(), 3);
 	m_labels = Eigen::ArrayXi::Zero(m_cloud->size());
 	m_labelsnpoint = Eigen::ArrayXi::Zero(m_cloud->size());
 	m_stacks.clear();  // needed in case of several runs
@@ -1006,14 +1106,29 @@ void G3PointAction::run()
 
 	compute_node_surfaces();
 
-	compute_normals_and_orient_them_open3d();
+	compute_normals_with_open3d();
+
+	// compute the centroid
+	int pointCount = m_cloud->size();
+	CCVector3d G(0, 0, 0);
+	{
+		for (unsigned i = 0; i < pointCount; ++i)
+		{
+			const CCVector3* P = m_cloud->getPoint(i);
+			G += *P;
+		}
+		G /= pointCount;
+	}
+
+	Eigen::Vector3d sensorCenter(G.x, G.y, 1000);
+	orient_normals(sensorCenter);
 
 	// Perform initial segmentation
 	int nLabels = segment_labels_braun_willett();
 
 	//	int nLabels = segment_labels_steepest_slope();
 
-	// cluster_labels();
+	cluster_labels();
 
 	m_app->dispToConsole( "[G3Point] initial segmentation: " + QString::number(nLabels) + " labels", ccMainAppInterface::STD_CONSOLE_MESSAGE );
 
