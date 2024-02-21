@@ -15,11 +15,14 @@ public:
 	explicit G3PointDialog(QWidget *parent = nullptr);
 	~G3PointDialog();
 	void emitRun();
+	void emitCluster();
 	int getkNN();
 	bool isSteepestSlope();
+	void enableCluster(bool state);
 
 signals:
 	void run();
+	void cluster();
 
 private:
 	Ui::qG3PointDialog *ui;

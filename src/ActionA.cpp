@@ -31,9 +31,18 @@
 
 #include <set>
 
+#include <ccPointCloud.h>
+
 namespace G3Point
 {
-G3PointAction* G3PointAction::s_g3PointAction;
+G3PointAction* G3PointAction::s_g3PointAction = nullptr;
+
+G3PointAction::G3PointAction(ccPointCloud *cloud, ccMainAppInterface *app) :
+	m_cloud(cloud),
+	m_app(app)
+{
+	s_g3PointAction = this;
+}
 
 RGBAColorsTableType getRandomColors(int randomColorsNumber)
 {
@@ -383,7 +392,7 @@ Eigen::ArrayXXd G3PointAction::compute_mean_angle()
 	return A;
 }
 
-void G3PointAction::get_sink_indexes()
+bool G3PointAction::update_local_maximum_indexes()
 {
 	int nlabels = m_stacks.size();
 
@@ -405,6 +414,105 @@ void G3PointAction::get_sink_indexes()
 	}
 
 	m_localMaximumIndexes = localMaximumIndexes;
+
+	return true;
+}
+
+bool G3PointAction::update_labels_and_colors()
+{
+	std::cout << "[G3PointAction::update_labels_and_colors]" << std::endl;
+
+	// g3point_label scalar field
+	int sfIdx = m_cloud->getScalarFieldIndexByName("g3point_label");
+	if (sfIdx == -1)
+	{
+		sfIdx = m_cloud->addScalarField("g3point_label");
+		if (sfIdx == -1)
+		{
+			ccLog::Error("[G3PointAction::update_labels_and_colors] impossible to create scalar field g3point_label");
+		}
+	}
+	CCCoreLib::ScalarField* g3point_label = m_cloud->getScalarField(sfIdx);
+
+	RGBAColorsTableType randomColors = getRandomColors(m_localMaximumIndexes.size());
+
+	if (!m_cloud->resizeTheRGBTable(false))
+	{
+		ccLog::Error(QObject::tr("[G3PointAction::update_labels_and_colors] Not enough memory!"));
+		return false;
+	}
+
+	for (int k = 0; k < m_localMaximumIndexes.size(); k++)
+	{
+		const std::vector<int>& stack = m_stacks[k];
+		// labels
+		for (auto i : stack)
+		{
+			m_labels(i) = k;
+			m_labelsnpoint(i) = stack.size();
+			if (g3point_label)
+			{
+				g3point_label->setValue(i, k);
+				m_cloud->setPointColor(i, randomColors.getValue(k));
+			}
+		}
+	}
+
+	if (g3point_label)
+	{
+		g3point_label->computeMinAndMax();
+	}
+
+	m_cloud->setCurrentDisplayedScalarField(sfIdx);
+	m_cloud->showColors(true);
+	m_cloud->showSF(false);
+
+	m_cloud->redrawDisplay();
+	m_cloud->prepareDisplayForRefresh();
+
+	if (m_app)
+	{
+		m_app->refreshAll();
+		m_app->updateUI();
+	}
+
+	return true;
+}
+
+bool G3PointAction::check_stacks(const std::vector<std::vector<int>>& stacks, int count)
+{
+	std::set<int> indexes;
+	bool ret = true;
+	int errorCount = 0;
+
+	// the stacks shall contain each point, only one time
+	for (auto& stack : stacks)
+	{
+		for (int index : stack)
+		{
+			if (indexes.count(index))
+			{
+				ccLog::Warning("[G3PointAction::check_stacks] index already in the set " + QString::number(index));
+				ret = false;
+				errorCount++;
+			}
+			indexes.insert(index);
+		}
+	}
+
+	if (errorCount)
+	{
+		ccLog::Error("[G3PointAction::check_stacks] number of duplicates " + QString::number(errorCount));
+	}
+
+	// the number of points in the staxks shall be the number of point in the point cloud
+	if(indexes.size() != m_cloud->size())
+	{
+		ccLog::Warning("[G3PointAction::check_stacks] size of indexes " + QString::number(indexes.size()) + ", point count " + QString::number(m_cloud->size()));
+		ret = false;
+	}
+
+	return ret;
 }
 
 int G3PointAction::cluster_labels()
@@ -484,32 +592,41 @@ int G3PointAction::cluster_labels()
 	std::cout << "\n\nA" << std::endl;
 	std::cout << A.block(0, 0, 10, 10) << std::endl;
 
+	if (check_stacks(m_stacks, m_cloud->size()))
+	{
+		ccLog::Print("m_stacks is valid");
+	}
+	else
+	{
+		ccLog::Error("m_stacks is not valid");
+	}
+
 	std::vector<std::vector<int>> newStacks;
 	Eigen::ArrayXi newLabels = Eigen::ArrayXi::Ones(nlabels) * (-1);
 	int countNewLabels = 0;
+	std::vector<int>* currentStack;
 
-	std::vector<int>* newStack;
 	for (int label = 0; label < nlabels; label++)
 	{
 		int newLabel = newLabels(label);
-		if (newLabel == -1)
+		if (newLabel == -1) // the label has not already been merged
 		{
 			newLabel = countNewLabels;
 			newLabels(label) = newLabel;
+			newStacks.push_back(m_stacks[label]); // initialize a newStack with the stack of the current label
+			currentStack = &newStacks.back();
 			countNewLabels++;
-			newStacks.push_back(m_stacks[label]); // add the stack to the newStacks
-			newStack = &newStacks.back();
 		}
 		else
 		{
-			newStack = &newStacks[newLabel]; // we may have to extend the stack of the label
+			currentStack = &newStacks[newLabel]; // we may have to extend the stack of the label
 		}
 		for (int otherLabel = 0; otherLabel < nlabels; otherLabel++)
 		{
 
-			if (otherLabel == label)
+			if ((otherLabel == label) || (newLabels[otherLabel] != -1))
 			{
-				continue; // do not try to merge a label with itself
+				continue; // do not try to merge a label with itself, do not merge if already merged
 			}
 
 			// shall we merge otherLabel with label?
@@ -518,10 +635,11 @@ int G3PointAction::cluster_labels()
 				// merge otherLabel into label
 				newLabels(otherLabel) = newLabel; // update the label value
 				std::vector<int>& otherStack = m_stacks[otherLabel];
-				newStack->insert(newStack->end(), otherStack.begin(), otherStack.end()); // add the stack to the label stack
+				currentStack->insert(currentStack->end(), otherStack.begin(), otherStack.end()); // add the stack to the label stack
 			}
 		}
 	}
+	newLabels.resize(newStacks.size());
 
 	std::cout << "m_stacks.size() " << m_stacks.size() << std::endl;
 	std::cout << "newStacks.size() " << newStacks.size() << std::endl;
@@ -530,8 +648,18 @@ int G3PointAction::cluster_labels()
 		std::cout << m_stacks[k].size() << " " << newStacks[k].size() << std::endl;
 	}
 
+	if (check_stacks(newStacks, m_cloud->size()))
+	{
+		ccLog::Print("newStacks is valid");
+	}
+	else
+	{
+		ccLog::Error("newStacks is not valid");
+	}
+
 	m_stacks = newStacks;
 	m_labels = newLabels;
+	update_local_maximum_indexes();
 
 	return 0;
 }
@@ -1004,7 +1132,7 @@ bool G3PointAction::compute_normals_with_open3d()
 	ccNormalVectors::Orientation preferredOrientation = ccNormalVectors::PLUS_Z;
 	ccNormalVectors::UpdateNormalOrientations(m_cloud, theNormsCodes, preferredOrientation);
 
-	ccLog::Print("[G3PointAction::compute_normals_and_orient_them_open3d] set the normals computed with Open3D to the point cloud");
+	ccLog::Print("[G3PointAction::compute_normals_with_open3d] set the normals computed with Open3D to the point cloud");
 	m_cloud->resizeTheNormsTable();
 
 	//we hide normals during process
@@ -1088,18 +1216,9 @@ bool G3PointAction::query_neighbors(ccPointCloud* cloud, ccMainAppInterface* app
 	return true;
 }
 
-void G3PointAction::run()
+void G3PointAction::segment()
 {
-	m_kNN = m_dlg->getkNN();
-
-	// initialize the matrix which will contain the results
-	m_neighbors_indexes.resize(m_cloud->size(), m_kNN);
-	m_neighbors_distances.resize(m_cloud->size(), m_kNN);
-	m_neighbors_slopes.resize(m_cloud->size(), m_kNN);
-	m_normals.resize(m_cloud->size(), 3);
-	m_labels = Eigen::ArrayXi::Zero(m_cloud->size());
-	m_labelsnpoint = Eigen::ArrayXi::Zero(m_cloud->size());
-	m_stacks.clear();  // needed in case of several runs
+	init();
 
 	// Find neighbors of each point of the cloud
 	query_neighbors(m_cloud, m_app, true);
@@ -1126,15 +1245,68 @@ void G3PointAction::run()
 	// Perform initial segmentation
 	int nLabels = segment_labels_braun_willett();
 
-	//	int nLabels = segment_labels_steepest_slope();
-
-	cluster_labels();
-
 	m_app->dispToConsole( "[G3Point] initial segmentation: " + QString::number(nLabels) + " labels", ccMainAppInterface::STD_CONSOLE_MESSAGE );
 
 	m_neighbors_indexes.resize(0, 0);
 	m_neighbors_distances.resize(0, 0);
 	m_neighbors_slopes.resize(0, 0);
+
+	m_dlg->enableCluster(true);
+}
+
+void G3PointAction::init()
+{
+	m_kNN = m_dlg->getkNN();
+
+	// initialize the matrices which will contain the results
+	m_neighbors_indexes = Eigen::ArrayXXi::Zero(m_cloud->size(), m_kNN);
+	m_neighbors_distances = Eigen::ArrayXXd::Zero(m_cloud->size(), m_kNN);
+	m_neighbors_slopes = Eigen::ArrayXXd::Zero(m_cloud->size(), m_kNN);
+	m_normals = Eigen::ArrayXXd::Zero(m_cloud->size(), 3);
+
+	m_labels = Eigen::ArrayXi::Zero(m_cloud->size());
+	m_labelsnpoint = Eigen::ArrayXi::Zero(m_cloud->size());
+
+	m_stacks.clear();  // needed in case of several runs
+}
+
+void G3PointAction::showDlg()
+{
+	if (!m_dlg)
+	{
+		m_dlg = new G3PointDialog();
+		m_dlg->setAttribute(Qt::WA_DeleteOnClose, true);
+		m_dlg->setWindowFlag(Qt::WindowStaysOnTopHint, true);
+		m_dlg->setWindowTitle("G3Point");
+
+		connect(m_dlg, &G3PointDialog::run, s_g3PointAction, &G3PointAction::segment);
+		connect(m_dlg, &G3PointDialog::cluster, s_g3PointAction, &G3PointAction::cluster_labels);
+		connect(m_dlg, &QDialog::finished, s_g3PointAction, &G3PointAction::clean);
+	}
+	else
+	{
+		m_dlg->enableCluster(false);
+	}
+
+	m_dlg->show();
+}
+
+void G3PointAction::clean()
+{
+	m_neighbors_indexes.resize(0, 0);
+	m_neighbors_distances.resize(0, 0);
+	m_neighbors_slopes.resize(0, 0);
+	m_normals.resize(0, 0);
+
+	m_labels.resize(0);
+	m_labelsnpoint.resize(0);
+	m_localMaximumIndexes.resize(0);
+	m_ndon.resize(0);
+	m_area.resize(0);
+
+	m_stacks.clear();
+
+	m_octree.clear();
 }
 
 void G3PointAction::createAction(ccMainAppInterface *appInterface)
@@ -1164,20 +1336,11 @@ void G3PointAction::createAction(ccMainAppInterface *appInterface)
 		return;
 	}
 
-	if (s_g3PointAction == nullptr) // create the singleton if needed
+	if (!s_g3PointAction) // create the singleton if needed
 	{
-		s_g3PointAction = new G3PointAction();
+		new G3PointAction(ccHObjectCaster::ToPointCloud(ent), appInterface);
 	}
-
-	s_g3PointAction->m_app = appInterface;
-	//display dialog
-	s_g3PointAction->m_dlg = new G3PointDialog();
-	s_g3PointAction->m_dlg->setAttribute(Qt::WA_DeleteOnClose, true);
-	s_g3PointAction->m_dlg->setWindowFlag(Qt::WindowStaysOnTopHint, true);
-	s_g3PointAction->m_dlg->setWindowTitle("G3Point");
-
-	connect(s_g3PointAction->m_dlg, &G3PointDialog::run, s_g3PointAction, &G3PointAction::run);
-	s_g3PointAction->m_cloud = ccHObjectCaster::ToPointCloud(ent);
-	s_g3PointAction->m_dlg->show();
+	s_g3PointAction->showDlg();
+	s_g3PointAction->init();
 }
 }
