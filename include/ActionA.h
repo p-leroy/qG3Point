@@ -21,7 +21,13 @@ class G3PointAction : public QObject
 
 public:
 	explicit G3PointAction(ccPointCloud *cloud, ccMainAppInterface *app=nullptr);
+	~G3PointAction();
 	static void createAction(ccMainAppInterface *appInterface);
+	static void GetG3PointAction(ccPointCloud *cloud, ccMainAppInterface *app=nullptr);
+	void segment();
+	void segmentCluster();
+	int cluster();
+	void clean();
 
 private:
 	bool sfConvertToRandomRGB(const ccHObject::Container &selectedEntities, QWidget* parent);
@@ -29,10 +35,10 @@ private:
 	int segment_labels(bool useParallelStrategy=true);
 	double angle_rot_2_vec_mat(const Eigen::Vector3d &a, const Eigen::Vector3d &b);
 	Eigen::ArrayXXd compute_mean_angle();
+	bool export_local_maxima_as_cloud();
 	bool update_local_maximum_indexes();
 	bool update_labels_and_colors();
 	bool check_stacks(const std::vector<std::vector<int>>& stacks, int count);
-	int cluster_labels();
 	int segment_labels_steepest_slope(bool useParallelStrategy=true);
 	void add_to_stack_braun_willett(int index, const Eigen::ArrayXi& delta, const Eigen::ArrayXi &Di, std::vector<int>& stack, int local_maximum);
 	int segment_labels_braun_willett(bool useParallelStrategy=true);
@@ -42,10 +48,10 @@ private:
 	void orient_normals(const Eigen::Vector3d &sensorCenter);
 	bool compute_normals_with_open3d();
 	bool query_neighbors(ccPointCloud* cloud, ccMainAppInterface* appInterface, bool useParallelStrategy=true);
-	void segment();
 	void init();
 	void showDlg();
-	void clean();
+	void resetDlg();
+	void setCloud(ccPointCloud *cloud);
 
 	int m_kNN = 20;
 	double m_radiusFactor = 0.6;

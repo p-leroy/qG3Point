@@ -37,11 +37,36 @@ namespace G3Point
 {
 G3PointAction* G3PointAction::s_g3PointAction = nullptr;
 
-G3PointAction::G3PointAction(ccPointCloud *cloud, ccMainAppInterface *app) :
-	m_cloud(cloud),
-	m_app(app)
+G3PointAction::G3PointAction(ccPointCloud *cloud, ccMainAppInterface *app)
+	: m_cloud(cloud)
+	, m_app(app)
+	, m_dlg(nullptr)
 {
-	s_g3PointAction = this;
+}
+
+G3PointAction::~G3PointAction()
+{
+	if (s_g3PointAction)
+	{
+		if (m_dlg)
+		{
+			delete m_dlg;
+		}
+	}
+}
+
+void G3PointAction::GetG3PointAction(ccPointCloud *cloud, ccMainAppInterface *app)
+{
+	if (!s_g3PointAction) // create the singleton if needed
+	{
+		s_g3PointAction = new G3PointAction(cloud, app);
+	}
+	else
+	{
+		s_g3PointAction->setCloud(cloud);
+	}
+	s_g3PointAction->showDlg();
+	s_g3PointAction->init();
 }
 
 RGBAColorsTableType getRandomColors(int randomColorsNumber)
@@ -392,20 +417,67 @@ Eigen::ArrayXXd G3PointAction::compute_mean_angle()
 	return A;
 }
 
+bool G3PointAction::export_local_maxima_as_cloud()
+{
+	// create cloud
+	QString cloudName = m_cloud->getName() + "_g3point";
+	ccPointCloud *cloud = new ccPointCloud(cloudName);
+
+	RGBAColorsTableType randomColors = getRandomColors(m_localMaximumIndexes.size());
+
+	for (auto index : m_localMaximumIndexes)
+	{
+		cloud->addPoint(*m_cloud->getPoint(index));
+	}
+
+	//allocate colors if necessary
+	if (cloud->resizeTheRGBTable())
+	{
+		for (int index = 0; index < cloud->size(); index++)
+		{
+			cloud->setPointColor(index, randomColors.getValue(index));
+		}
+	}
+
+	cloud->showColors(true);
+	cloud->setPointSize(m_dlg->getPointSize());
+
+	int nbChildrenn = m_cloud->getParent()->getChildrenNumber();
+	std::vector<ccHObject *> toDelete;
+	for (int k = 0; k < nbChildrenn; k++)
+	{
+		auto child = m_cloud->getParent()->getChild(k);
+
+		if (child->getName() == cloudName)
+		{
+			toDelete.push_back(child);
+		}
+	}
+	for (auto& child : toDelete)
+	{
+		delete child;
+	}
+
+	m_cloud->getParent()->addChild(cloud, ccHObject::DP_PARENT_OF_OTHER, 0);
+	m_app->addToDB(cloud);
+
+	return true;
+}
+
 bool G3PointAction::update_local_maximum_indexes()
 {
-	int nlabels = m_stacks.size();
+	size_t nlabels = m_stacks.size();
 
 	Eigen::ArrayXi localMaximumIndexes = Eigen::ArrayXi::Ones(nlabels) * (-1);
 
 	for (int k = 0; k < nlabels; k++)
 	{
 		auto& stack = m_stacks[k];
-		int nPoints = stack.size();
+		size_t nPoints = stack.size();
 		Eigen::ArrayXd elevations(nPoints);
 		for (int index = 0; index < nPoints; index++)
 		{
-			const CCVector3* point = m_cloud->getPoint(index);
+			const CCVector3* point = m_cloud->getPoint(stack[index]);
 			elevations(index) = point->z;
 		}
 		Eigen::Index maxIndex;
@@ -515,10 +587,12 @@ bool G3PointAction::check_stacks(const std::vector<std::vector<int>>& stacks, in
 	return ret;
 }
 
-int G3PointAction::cluster_labels()
+int G3PointAction::cluster()
 {
 	ccLog::Print("[cluster_labels]");
-	int nlabels = m_stacks.size();
+	size_t nlabels = m_stacks.size();
+	m_maxAngle1 = m_dlg->getMaxAngle1();
+	m_radiusFactor = m_dlg->getRadiusFactor();
 
 	// Compute the distances between the sinks associated to each label
 	Eigen::ArrayXXd D1(nlabels, nlabels);
@@ -592,17 +666,13 @@ int G3PointAction::cluster_labels()
 	std::cout << "\n\nA" << std::endl;
 	std::cout << A.block(0, 0, 10, 10) << std::endl;
 
-	if (check_stacks(m_stacks, m_cloud->size()))
-	{
-		ccLog::Print("m_stacks is valid");
-	}
-	else
+	if (!check_stacks(m_stacks, m_cloud->size()))
 	{
 		ccLog::Error("m_stacks is not valid");
 	}
 
 	std::vector<std::vector<int>> newStacks;
-	Eigen::ArrayXi newLabels = Eigen::ArrayXi::Ones(nlabels) * (-1);
+	Eigen::ArrayXi newLabels = Eigen::ArrayXi::Ones(m_labels.size()) * (-1);
 	int countNewLabels = 0;
 	std::vector<int>* currentStack;
 
@@ -639,27 +709,29 @@ int G3PointAction::cluster_labels()
 			}
 		}
 	}
-	newLabels.resize(newStacks.size());
 
-	std::cout << "m_stacks.size() " << m_stacks.size() << std::endl;
-	std::cout << "newStacks.size() " << newStacks.size() << std::endl;
+	std::cout << "(a) m_stacks.size() " << m_stacks.size() << std::endl;
+	std::cout << "(a) m_labels.size() " << m_labels.size() << std::endl;
 	for (int k = 0; k < 10; k++)
 	{
 		std::cout << m_stacks[k].size() << " " << newStacks[k].size() << std::endl;
 	}
 
-	if (check_stacks(newStacks, m_cloud->size()))
-	{
-		ccLog::Print("newStacks is valid");
-	}
-	else
+	if (!check_stacks(newStacks, m_cloud->size()))
 	{
 		ccLog::Error("newStacks is not valid");
 	}
 
 	m_stacks = newStacks;
-	m_labels = newLabels;
+
 	update_local_maximum_indexes();
+
+	update_labels_and_colors();
+
+	std::cout << "(b) m_stacks.size() " << m_stacks.size() << std::endl;
+	std::cout << "(b) m_labels.size() " << m_labels.size() << std::endl;
+
+	export_local_maxima_as_cloud();
 
 	return 0;
 }
@@ -1245,13 +1317,18 @@ void G3PointAction::segment()
 	// Perform initial segmentation
 	int nLabels = segment_labels_braun_willett();
 
+	export_local_maxima_as_cloud();
+
 	m_app->dispToConsole( "[G3Point] initial segmentation: " + QString::number(nLabels) + " labels", ccMainAppInterface::STD_CONSOLE_MESSAGE );
 
-	m_neighbors_indexes.resize(0, 0);
-	m_neighbors_distances.resize(0, 0);
-	m_neighbors_slopes.resize(0, 0);
-
 	m_dlg->enableCluster(true);
+}
+
+void G3PointAction::segmentCluster()
+{
+	segment();
+
+	cluster();
 }
 
 void G3PointAction::init()
@@ -1274,14 +1351,13 @@ void G3PointAction::showDlg()
 {
 	if (!m_dlg)
 	{
-		m_dlg = new G3PointDialog();
-		m_dlg->setAttribute(Qt::WA_DeleteOnClose, true);
-		m_dlg->setWindowFlag(Qt::WindowStaysOnTopHint, true);
-		m_dlg->setWindowTitle("G3Point");
+		m_dlg = new G3PointDialog(m_cloud->getName());
 
-		connect(m_dlg, &G3PointDialog::run, s_g3PointAction, &G3PointAction::segment);
-		connect(m_dlg, &G3PointDialog::cluster, s_g3PointAction, &G3PointAction::cluster_labels);
-		connect(m_dlg, &QDialog::finished, s_g3PointAction, &G3PointAction::clean);
+		connect(m_dlg, &G3PointDialog::segment, s_g3PointAction, &G3Point::G3PointAction::segment);
+		connect(m_dlg, &G3PointDialog::cluster, s_g3PointAction, &G3Point::G3PointAction::cluster);
+		connect(m_dlg, &G3PointDialog::segmentCluster, s_g3PointAction, &G3Point::G3PointAction::segmentCluster);
+		connect(m_dlg, &QDialog::finished, s_g3PointAction, &G3Point::G3PointAction::clean);
+		connect(m_dlg, &QDialog::finished, s_g3PointAction, &G3Point::G3PointAction::resetDlg); // dialog is defined with Qt::WA_DeleteOnClose
 	}
 	else
 	{
@@ -1289,6 +1365,12 @@ void G3PointAction::showDlg()
 	}
 
 	m_dlg->show();
+}
+
+void G3PointAction::resetDlg()
+{
+	// dialog is defined with Qt::WA_DeleteOnClose, you have to reset the pointer when it's closed by the user
+	m_dlg = nullptr;
 }
 
 void G3PointAction::clean()
@@ -1307,6 +1389,11 @@ void G3PointAction::clean()
 	m_stacks.clear();
 
 	m_octree.clear();
+}
+
+void G3PointAction::setCloud(ccPointCloud *cloud)
+{
+	m_cloud = cloud;
 }
 
 void G3PointAction::createAction(ccMainAppInterface *appInterface)
@@ -1336,11 +1423,6 @@ void G3PointAction::createAction(ccMainAppInterface *appInterface)
 		return;
 	}
 
-	if (!s_g3PointAction) // create the singleton if needed
-	{
-		new G3PointAction(ccHObjectCaster::ToPointCloud(ent), appInterface);
-	}
-	s_g3PointAction->showDlg();
-	s_g3PointAction->init();
+	GetG3PointAction(ccHObjectCaster::ToPointCloud(ent), appInterface);
 }
 }

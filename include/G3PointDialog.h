@@ -12,17 +12,22 @@ class G3PointDialog : public QDialog
 	Q_OBJECT
 
 public:
-	explicit G3PointDialog(QWidget *parent = nullptr);
+	explicit G3PointDialog(QString cloudName, QWidget *parent = nullptr);
 	~G3PointDialog();
-	void emitRun();
-	void emitCluster();
+	void emitSegment(){emit segment();}
+	void emitCluster(){emit cluster();}
+	void emitSegmentCluster(){emit segmentCluster();}
+	double getMaxAngle1();
 	int getkNN();
+	int getPointSize();
+	double getRadiusFactor();
 	bool isSteepestSlope();
 	void enableCluster(bool state);
 
 signals:
-	void run();
+	void segment();
 	void cluster();
+	void segmentCluster();
 
 private:
 	Ui::qG3PointDialog *ui;
