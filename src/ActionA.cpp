@@ -370,6 +370,8 @@ Eigen::ArrayXXd G3PointAction::compute_mean_angle()
 	// Compute the angle of the normal vector between the neighbours of each grain / label
 	int nlabels = m_stacks.size();
 	Eigen::ArrayXXd A = Eigen::ArrayXXd::Zero(nlabels, nlabels);
+	Eigen::ArrayXXd Aangle(nlabels, nlabels);
+	Aangle.fill(NAN);
 	Eigen::ArrayXXi N = Eigen::ArrayXXi::Zero(nlabels, nlabels);
 
 	for (auto i : indborder)
@@ -406,7 +408,7 @@ Eigen::ArrayXXd G3PointAction::compute_mean_angle()
 		{
 			if (N(r, c) != 0)
 			{
-				A(r, c) = A(r, c) / N(r, c);
+				Aangle(r, c) = A(r, c) / N(r, c);
 			}
 		}
 	}
@@ -414,7 +416,7 @@ Eigen::ArrayXXd G3PointAction::compute_mean_angle()
 	// std::cout << "A mean" << std::endl;
 	// std::cout << A.block(0, 0, 10, 10) << std::endl;
 
-	return A;
+	return Aangle;
 }
 
 bool G3PointAction::export_local_maxima_as_cloud()
@@ -674,41 +676,82 @@ int G3PointAction::cluster()
 	std::vector<std::vector<int>> newStacks;
 	Eigen::ArrayXi newLabels = Eigen::ArrayXi::Ones(m_labels.size()) * (-1);
 	int countNewLabels = 0;
-	std::vector<int>* currentStack;
 
 	for (int label = 0; label < nlabels; label++)
 	{
-		int newLabel = newLabels(label);
-		if (newLabel == -1) // the label has not already been merged
+
+		if (newLabels(label) == -1) // the label has not already been merged
 		{
-			newLabel = countNewLabels;
-			newLabels(label) = newLabel;
+			newLabels(label) = countNewLabels;
 			newStacks.push_back(m_stacks[label]); // initialize a newStack with the stack of the current label
-			currentStack = &newStacks.back();
 			countNewLabels++;
 		}
-		else
-		{
-			currentStack = &newStacks[newLabel]; // we may have to extend the stack of the label
-		}
+
 		for (int otherLabel = 0; otherLabel < nlabels; otherLabel++)
 		{
 
-			if ((otherLabel == label) || (newLabels[otherLabel] != -1))
+			if (otherLabel == label)
 			{
-				continue; // do not try to merge a label with itself, do not merge if already merged
+				continue; // do not try to merge a label with itself
 			}
 
 			// shall we merge otherLabel with label?
-			if ((Dist(label, otherLabel) == 1) && (Nneigh(label, otherLabel) == 1) && (A(label, otherLabel) <= m_maxAngle1))
+			if ((Dist(label, otherLabel) == 1)
+				&& (Nneigh(label, otherLabel) == 1)
+				&& (A(label, otherLabel) <= m_maxAngle1)
+				&& (!isnan(A(label, otherLabel))))
 			{
-				// merge otherLabel into label
-				newLabels(otherLabel) = newLabel; // update the label value
-				std::vector<int>& otherStack = m_stacks[otherLabel];
-				currentStack->insert(currentStack->end(), otherStack.begin(), otherStack.end()); // add the stack to the label stack
+
+				std::vector<int>& labelStack = newStacks[newLabels(label)];
+
+				if (newLabels(otherLabel) != -1) // the other label has already been merged
+				{
+					std::vector<int>& otherLabelStack = newStacks[newLabels(otherLabel)];
+					if (newLabels(label) > newLabels(otherLabel)) // merge label in otherLabel
+					{
+						// add the label stack to the otherLabel stack
+						otherLabelStack.insert(otherLabelStack.end(), labelStack.begin(), labelStack.end()); // add the stack to the label stack
+						// empty the label stack
+						labelStack.clear();
+						// update the label
+						newLabels(label) = newLabels(otherLabel);
+					}
+					if (newLabels(label) < newLabels(otherLabel)) // merge otherLabel in label
+					{
+						// add the otherLabel stack to the label stack
+						labelStack.insert(labelStack.end(), otherLabelStack.begin(), otherLabelStack.end()); // add the stack to the label stack
+						// empty the otherLabel stack
+						otherLabelStack.clear();
+						// update the otherLabel
+						newLabels(otherLabel) = newLabels(label);
+					}
+				}
+				else  // merge otherLabel and label
+				{
+					std::vector<int>& otherLabelStack = m_stacks[otherLabel];
+					// add the otherLabel stack to the label stack
+					labelStack.insert(labelStack.end(), otherLabelStack.begin(), otherLabelStack.end()); // add the stack to the label stack
+					// update the otherLabel
+					newLabels(otherLabel) = newLabels(label);
+				}
 			}
 		}
 	}
+
+	// remove empty stacks
+	std::vector<std::vector<int>> newStacksWithoutEmpty;
+	for (auto& stack : newStacks)
+	{
+		if (!stack.empty())
+		{
+			newStacksWithoutEmpty.push_back(stack);
+		}
+	}
+	std::cout << "m_stacks.size() " << m_stacks.size()
+			  << " newStacks.size() " << newStacks.size()
+			  << " newStacksWithoutEmpty.size() " << newStacksWithoutEmpty.size() << std::endl;
+
+	newStacks = newStacksWithoutEmpty;
 
 	std::cout << "(a) m_stacks.size() " << m_stacks.size() << std::endl;
 	std::cout << "(a) m_labels.size() " << m_labels.size() << std::endl;
