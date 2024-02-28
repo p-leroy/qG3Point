@@ -19,6 +19,8 @@ class G3PointAction : public QObject
 {
 	Q_OBJECT
 
+	typedef Eigen::Array<bool, Eigen::Dynamic, Eigen::Dynamic> XXb;
+
 public:
 	explicit G3PointAction(ccPointCloud *cloud, ccMainAppInterface *app=nullptr);
 	~G3PointAction();

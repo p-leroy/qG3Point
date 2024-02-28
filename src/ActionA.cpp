@@ -677,6 +677,13 @@ int G3PointAction::cluster()
 	Eigen::ArrayXi newLabels = Eigen::ArrayXi::Ones(m_labels.size()) * (-1);
 	int countNewLabels = 0;
 
+	// create the condition matrix and for ce the symmetry of the matrix
+	XXb condition = (Dist < 1) || (Nneigh < 1) || (A > m_maxAngle1) || (A != A);
+	XXb symmetrical_condition = (condition == condition.transpose()).select(condition, true);
+
+	std::cout << "\n\nsymmetrical_condition" << std::endl;
+	std::cout << symmetrical_condition.block(0, 0, 20, 20) << std::endl;
+
 	for (int label = 0; label < nlabels; label++)
 	{
 
@@ -696,10 +703,11 @@ int G3PointAction::cluster()
 			}
 
 			// shall we merge otherLabel with label?
-			if ((Dist(label, otherLabel) == 1)
-				&& (Nneigh(label, otherLabel) == 1)
-				&& (A(label, otherLabel) <= m_maxAngle1)
-				&& (!isnan(A(label, otherLabel))))
+			if (!symmetrical_condition(label, otherLabel))
+//			if ((Dist(label, otherLabel) == 1)
+//				&& (Nneigh(label, otherLabel) == 1)
+//				&& (A(label, otherLabel) <= m_maxAngle1)
+//				&& (!isnan(A(label, otherLabel))))
 			{
 
 				std::vector<int>& labelStack = newStacks[newLabels(label)];
