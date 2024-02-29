@@ -6,14 +6,83 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>199</width>
-    <height>276</height>
+    <width>281</width>
+    <height>459</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>Dialog</string>
   </property>
   <layout class="QGridLayout" name="gridLayout">
+   <item row="16" column="0" colspan="2">
+    <widget class="QLabel" name="labelCloud">
+     <property name="text">
+      <string>-</string>
+     </property>
+    </widget>
+   </item>
+   <item row="12" column="1">
+    <widget class="QPushButton" name="pushButtonSegmentCluster">
+     <property name="text">
+      <string>Segment + Cluster</string>
+     </property>
+    </widget>
+   </item>
+   <item row="4" column="0">
+    <widget class="QLabel" name="label_6">
+     <property name="text">
+      <string>Min points per grain</string>
+     </property>
+    </widget>
+   </item>
+   <item row="6" column="0">
+    <widget class="QLabel" name="label_3">
+     <property name="text">
+      <string>Point size</string>
+     </property>
+    </widget>
+   </item>
+   <item row="5" column="0">
+    <widget class="QLabel" name="label_7">
+     <property name="text">
+      <string>Min flatness</string>
+     </property>
+    </widget>
+   </item>
+   <item row="2" column="0">
+    <widget class="QLabel" name="label_2">
+     <property name="text">
+      <string>Max angle 1</string>
+     </property>
+    </widget>
+   </item>
+   <item row="15" column="0">
+    <widget class="QRadioButton" name="radioButtonG3Point">
+     <property name="text">
+      <string>G3Point</string>
+     </property>
+     <property name="checked">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item row="6" column="1">
+    <widget class="QSpinBox" name="spinBoxPointSize">
+     <property name="minimum">
+      <number>1</number>
+     </property>
+     <property name="value">
+      <number>3</number>
+     </property>
+    </widget>
+   </item>
+   <item row="1" column="0">
+    <widget class="QLabel" name="label_4">
+     <property name="text">
+      <string>Radius factor</string>
+     </property>
+    </widget>
+   </item>
    <item row="0" column="1">
     <widget class="QSpinBox" name="spinBoxkNN">
      <property name="minimum">
@@ -27,34 +96,34 @@
      </property>
     </widget>
    </item>
-   <item row="3" column="1">
-    <widget class="QSpinBox" name="spinBoxPointSize">
-     <property name="minimum">
-      <number>1</number>
+   <item row="4" column="1">
+    <widget class="QSpinBox" name="spinBoxNMin">
+     <property name="maximum">
+      <number>1000000000</number>
      </property>
      <property name="value">
-      <number>3</number>
+      <number>50</number>
      </property>
     </widget>
    </item>
-   <item row="8" column="0">
-    <widget class="QRadioButton" name="radioButtonG3Point">
+   <item row="1" column="1">
+    <widget class="QDoubleSpinBox" name="doubleSpinBoxRadiusFactor">
+     <property name="value">
+      <double>0.600000000000000</double>
+     </property>
+    </widget>
+   </item>
+   <item row="11" column="1">
+    <widget class="QPushButton" name="pushButtonClean">
+     <property name="enabled">
+      <bool>false</bool>
+     </property>
      <property name="text">
-      <string>G3Point</string>
-     </property>
-     <property name="checked">
-      <bool>true</bool>
+      <string>Clean</string>
      </property>
     </widget>
    </item>
-   <item row="2" column="0">
-    <widget class="QLabel" name="label_2">
-     <property name="text">
-      <string>Max angle 1</string>
-     </property>
-    </widget>
-   </item>
-   <item row="6" column="1">
+   <item row="9" column="1">
     <widget class="QPushButton" name="pushButtonCluster">
      <property name="enabled">
       <bool>false</bool>
@@ -64,17 +133,13 @@
      </property>
     </widget>
    </item>
-   <item row="0" column="0">
-    <widget class="QLabel" name="label">
-     <property name="text">
-      <string>kNN</string>
-     </property>
-    </widget>
-   </item>
    <item row="5" column="1">
-    <widget class="QPushButton" name="pushButtonSegment">
-     <property name="text">
-      <string>Segment</string>
+    <widget class="QDoubleSpinBox" name="doubleSpinBoxMinFlatness">
+     <property name="singleStep">
+      <double>0.100000000000000</double>
+     </property>
+     <property name="value">
+      <double>0.100000000000000</double>
      </property>
     </widget>
    </item>
@@ -94,45 +159,52 @@
      </property>
     </widget>
    </item>
-   <item row="7" column="1">
-    <widget class="QPushButton" name="pushButtonSegmentCluster">
-     <property name="text">
-      <string>Segment + Cluster</string>
-     </property>
-    </widget>
-   </item>
-   <item row="9" column="0" colspan="2">
-    <widget class="QLabel" name="labelCloud">
-     <property name="text">
-      <string>-</string>
-     </property>
-    </widget>
-   </item>
-   <item row="8" column="1">
+   <item row="15" column="1">
     <widget class="QRadioButton" name="radioButtonSteepestSlope">
      <property name="text">
       <string>steepest slope</string>
      </property>
     </widget>
    </item>
+   <item row="0" column="0">
+    <widget class="QLabel" name="label">
+     <property name="text">
+      <string>kNN</string>
+     </property>
+    </widget>
+   </item>
    <item row="3" column="0">
-    <widget class="QLabel" name="label_3">
+    <widget class="QLabel" name="label_5">
      <property name="text">
-      <string>Point size</string>
+      <string>Max angle 2</string>
      </property>
     </widget>
    </item>
-   <item row="1" column="0">
-    <widget class="QLabel" name="label_4">
-     <property name="text">
-      <string>Radius factor</string>
-     </property>
-    </widget>
-   </item>
-   <item row="1" column="1">
-    <widget class="QDoubleSpinBox" name="doubleSpinBoxRadiusFactor">
+   <item row="3" column="1">
+    <widget class="QDoubleSpinBox" name="doubleSpinBoxMaxAngle2">
      <property name="value">
-      <double>0.600000000000000</double>
+      <double>10.000000000000000</double>
+     </property>
+    </widget>
+   </item>
+   <item row="13" column="1">
+    <widget class="QPushButton" name="pushButtonSegmentClusterClean">
+     <property name="text">
+      <string>Segment + Cluster + Clean</string>
+     </property>
+    </widget>
+   </item>
+   <item row="8" column="1">
+    <widget class="QPushButton" name="pushButtonSegment">
+     <property name="text">
+      <string>Segment</string>
+     </property>
+    </widget>
+   </item>
+   <item row="14" column="1">
+    <widget class="QPushButton" name="pushButtonGetBorders">
+     <property name="text">
+      <string>Get borders</string>
      </property>
     </widget>
    </item>

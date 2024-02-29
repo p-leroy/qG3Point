@@ -15,6 +15,9 @@ G3PointDialog::G3PointDialog(QString cloudName, QWidget *parent)
 	connect(this->ui->pushButtonSegment, &QPushButton::clicked, this, &G3PointDialog::emitSegment);
 	connect(this->ui->pushButtonCluster, &QPushButton::clicked, this, &G3PointDialog::emitCluster);
 	connect(this->ui->pushButtonSegmentCluster, &QPushButton::clicked, this, &G3PointDialog::emitSegmentCluster);
+	connect(this->ui->pushButtonClean, &QPushButton::clicked, this, &G3PointDialog::emitClean);
+	connect(this->ui->pushButtonSegmentClusterClean, &QPushButton::clicked, this, &G3PointDialog::emitSegmentClusterClean);
+	connect(this->ui->pushButtonGetBorders, &QPushButton::clicked, this, &G3PointDialog::emitGetBorders);
 }
 
 G3PointDialog::~G3PointDialog()
@@ -25,6 +28,21 @@ G3PointDialog::~G3PointDialog()
 double G3PointDialog::getMaxAngle1()
 {
 	return this->ui->doubleSpinBoxMaxAngle1->value();
+}
+
+double G3PointDialog::getMaxAngle2()
+{
+	return this->ui->doubleSpinBoxMaxAngle2->value();
+}
+
+double G3PointDialog::getMinFlatness()
+{
+	return this->ui->doubleSpinBoxMinFlatness->value();
+}
+
+int G3PointDialog::getNMin()
+{
+	return this->ui->spinBoxNMin->value();
 }
 
 int G3PointDialog::getkNN()
@@ -50,4 +68,9 @@ bool G3PointDialog::isSteepestSlope()
 void G3PointDialog::enableCluster(bool state)
 {
 	this->ui->pushButtonCluster->setEnabled(state);
+}
+
+void G3PointDialog::enableClean(bool state)
+{
+	this->ui->pushButtonClean->setEnabled(state);
 }

@@ -20,6 +20,7 @@ class G3PointAction : public QObject
 	Q_OBJECT
 
 	typedef Eigen::Array<bool, Eigen::Dynamic, Eigen::Dynamic> XXb;
+	typedef Eigen::Array<bool, Eigen::Dynamic, Eigen::Dynamic> Xb;
 
 public:
 	explicit G3PointAction(ccPointCloud *cloud, ccMainAppInterface *app=nullptr);
@@ -27,8 +28,14 @@ public:
 	static void createAction(ccMainAppInterface *appInterface);
 	static void GetG3PointAction(ccPointCloud *cloud, ccMainAppInterface *app=nullptr);
 	void segment();
-	void segmentCluster();
+	void segmentAndCluster();
+	void segmentAndClusterAndClean();
+	void getBorders();
 	int cluster();
+	bool processNewStacks(std::vector<std::vector<int>>& stacks);
+	bool merge(XXb& condition);
+	bool keepLabels(Xb& condition);
+	bool cleanLabels();
 	void clean();
 
 private:
@@ -36,11 +43,11 @@ private:
 	void add_to_stack(int index, const Eigen::ArrayXi& n_donors, const Eigen::ArrayXXi& donors, std::vector<int>& stack);
 	int segment_labels(bool useParallelStrategy=true);
 	double angle_rot_2_vec_mat(const Eigen::Vector3d &a, const Eigen::Vector3d &b);
-	Eigen::ArrayXXd compute_mean_angle();
-	bool export_local_maxima_as_cloud();
-	bool update_local_maximum_indexes();
-	bool update_labels_and_colors();
-	bool check_stacks(const std::vector<std::vector<int>>& stacks, int count);
+	Eigen::ArrayXXd computeMeanAngle();
+	bool exportLocalMaximaAsCloud();
+	bool updateLocalMaximumIndexes();
+	bool updateLabelsAndColors();
+	bool checkStacks(const std::vector<std::vector<int>>& stacks, int count);
 	int segment_labels_steepest_slope(bool useParallelStrategy=true);
 	void add_to_stack_braun_willett(int index, const Eigen::ArrayXi& delta, const Eigen::ArrayXi &Di, std::vector<int>& stack, int local_maximum);
 	int segment_labels_braun_willett(bool useParallelStrategy=true);
@@ -58,6 +65,9 @@ private:
 	int m_kNN = 20;
 	double m_radiusFactor = 0.6;
 	double m_maxAngle1 = 60;
+	double m_maxAngle2 = 10;
+	int m_nMin = 50;
+	double m_minFlatness = 0.1;
 
 	ccPointCloud* m_cloud;
 	ccMainAppInterface *m_app;

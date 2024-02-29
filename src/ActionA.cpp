@@ -15,6 +15,7 @@
 #include <QCoreApplication>
 #include <QThreadPool>
 #include <QtConcurrent>
+#include <QApplication>
 
 #include <algorithm>
 #include <iostream>
@@ -333,7 +334,7 @@ double G3PointAction::angle_rot_2_vec_mat(const Eigen::Vector3d& a, const Eigen:
 	return angle;
 }
 
-Eigen::ArrayXXd G3PointAction::compute_mean_angle()
+Eigen::ArrayXXd G3PointAction::computeMeanAngle()
 {
 	// Find the indexborder nodes (no donor and many other labels in the neighbourhood)
 	Eigen::ArrayXXi duplicated_labels(m_cloud->size(), m_kNN);
@@ -419,7 +420,7 @@ Eigen::ArrayXXd G3PointAction::compute_mean_angle()
 	return Aangle;
 }
 
-bool G3PointAction::export_local_maxima_as_cloud()
+bool G3PointAction::exportLocalMaximaAsCloud()
 {
 	// create cloud
 	QString cloudName = m_cloud->getName() + "_g3point";
@@ -444,11 +445,12 @@ bool G3PointAction::export_local_maxima_as_cloud()
 	cloud->showColors(true);
 	cloud->setPointSize(m_dlg->getPointSize());
 
-	int nbChildrenn = m_cloud->getParent()->getChildrenNumber();
+	ccHObject* parent = m_cloud->getParent();
+	int nbChildren = parent->getChildrenNumber();
 	std::vector<ccHObject *> toDelete;
-	for (int k = 0; k < nbChildrenn; k++)
+	for (int k = 0; k < nbChildren; k++)
 	{
-		auto child = m_cloud->getParent()->getChild(k);
+		auto child = parent->getChild(k);
 
 		if (child->getName() == cloudName)
 		{
@@ -457,16 +459,16 @@ bool G3PointAction::export_local_maxima_as_cloud()
 	}
 	for (auto& child : toDelete)
 	{
-		delete child;
+		parent->removeChild(child);
 	}
 
-	m_cloud->getParent()->addChild(cloud, ccHObject::DP_PARENT_OF_OTHER, 0);
+	parent->addChild(cloud, ccHObject::DP_PARENT_OF_OTHER, 0);
 	m_app->addToDB(cloud);
 
 	return true;
 }
 
-bool G3PointAction::update_local_maximum_indexes()
+bool G3PointAction::updateLocalMaximumIndexes()
 {
 	size_t nlabels = m_stacks.size();
 
@@ -487,12 +489,18 @@ bool G3PointAction::update_local_maximum_indexes()
 		localMaximumIndexes(k) = stack[maxIndex];
 	}
 
+	if ((localMaximumIndexes == -1).any())
+	{
+		ccLog::Error("[G3PointAction::updateLocalMaximumIndexes] CANCEL value error in the indexes of the local maximima");
+		return false;
+	}
+
 	m_localMaximumIndexes = localMaximumIndexes;
 
 	return true;
 }
 
-bool G3PointAction::update_labels_and_colors()
+bool G3PointAction::updateLabelsAndColors()
 {
 	std::cout << "[G3PointAction::update_labels_and_colors]" << std::endl;
 
@@ -508,7 +516,7 @@ bool G3PointAction::update_labels_and_colors()
 	}
 	CCCoreLib::ScalarField* g3point_label = m_cloud->getScalarField(sfIdx);
 
-	RGBAColorsTableType randomColors = getRandomColors(m_localMaximumIndexes.size());
+	RGBAColorsTableType randomColors = getRandomColors(m_stacks.size());
 
 	if (!m_cloud->resizeTheRGBTable(false))
 	{
@@ -516,7 +524,7 @@ bool G3PointAction::update_labels_and_colors()
 		return false;
 	}
 
-	for (int k = 0; k < m_localMaximumIndexes.size(); k++)
+	for (int k = 0; k < m_stacks.size(); k++)
 	{
 		const std::vector<int>& stack = m_stacks[k];
 		// labels
@@ -553,7 +561,7 @@ bool G3PointAction::update_labels_and_colors()
 	return true;
 }
 
-bool G3PointAction::check_stacks(const std::vector<std::vector<int>>& stacks, int count)
+bool G3PointAction::checkStacks(const std::vector<std::vector<int>>& stacks, int count)
 {
 	std::set<int> indexes;
 	bool ret = true;
@@ -579,8 +587,8 @@ bool G3PointAction::check_stacks(const std::vector<std::vector<int>>& stacks, in
 		ccLog::Error("[G3PointAction::check_stacks] number of duplicates " + QString::number(errorCount));
 	}
 
-	// the number of points in the staxks shall be the number of point in the point cloud
-	if(indexes.size() != m_cloud->size())
+	// the number of points in the stacks shall be the number of point in m_labels
+	if(indexes.size() != m_labels.size())
 	{
 		ccLog::Warning("[G3PointAction::check_stacks] size of indexes " + QString::number(indexes.size()) + ", point count " + QString::number(m_cloud->size()));
 		ret = false;
@@ -593,6 +601,7 @@ int G3PointAction::cluster()
 {
 	ccLog::Print("[cluster_labels]");
 	size_t nlabels = m_stacks.size();
+
 	m_maxAngle1 = m_dlg->getMaxAngle1();
 	m_radiusFactor = m_dlg->getRadiusFactor();
 
@@ -654,7 +663,7 @@ int G3PointAction::cluster()
 		k++;
 	}
 
-	Eigen::ArrayXXd A = compute_mean_angle();
+	Eigen::ArrayXXd A = computeMeanAngle();
 
 	// merge labels if sinks are
 	// => close to each other (Dist == 1)
@@ -668,21 +677,22 @@ int G3PointAction::cluster()
 	std::cout << "\n\nA" << std::endl;
 	std::cout << A.block(0, 0, 10, 10) << std::endl;
 
-	if (!check_stacks(m_stacks, m_cloud->size()))
+	if (!checkStacks(m_stacks, m_cloud->size()))
 	{
 		ccLog::Error("m_stacks is not valid");
 	}
 
-	std::vector<std::vector<int>> newStacks;
-	Eigen::ArrayXi newLabels = Eigen::ArrayXi::Ones(m_labels.size()) * (-1);
-	int countNewLabels = 0;
-
-	// create the condition matrix and for ce the symmetry of the matrix
+	// create the condition matrix and force the symmetry of the matrix
 	XXb condition = (Dist < 1) || (Nneigh < 1) || (A > m_maxAngle1) || (A != A);
 	XXb symmetrical_condition = (condition == condition.transpose()).select(condition, true);
+	condition = symmetrical_condition;
 
 	std::cout << "\n\nsymmetrical_condition" << std::endl;
 	std::cout << symmetrical_condition.block(0, 0, 20, 20) << std::endl;
+
+	std::vector<std::vector<int>> newStacks;
+	Eigen::ArrayXi newLabels = Eigen::ArrayXi::Ones(m_labels.size()) * (-1);
+	int countNewLabels = 0;
 
 	for (int label = 0; label < nlabels; label++)
 	{
@@ -703,7 +713,7 @@ int G3PointAction::cluster()
 			}
 
 			// shall we merge otherLabel with label?
-			if (!symmetrical_condition(label, otherLabel))
+			if (!condition(label, otherLabel))
 //			if ((Dist(label, otherLabel) == 1)
 //				&& (Nneigh(label, otherLabel) == 1)
 //				&& (A(label, otherLabel) <= m_maxAngle1)
@@ -768,23 +778,255 @@ int G3PointAction::cluster()
 		std::cout << m_stacks[k].size() << " " << newStacks[k].size() << std::endl;
 	}
 
-	if (!check_stacks(newStacks, m_cloud->size()))
+	if (!checkStacks(newStacks, m_cloud->size()))
 	{
 		ccLog::Error("newStacks is not valid");
 	}
 
 	m_stacks = newStacks;
 
-	update_local_maximum_indexes();
+	updateLocalMaximumIndexes();
 
-	update_labels_and_colors();
+	updateLabelsAndColors();
+
+	exportLocalMaximaAsCloud();
 
 	std::cout << "(b) m_stacks.size() " << m_stacks.size() << std::endl;
 	std::cout << "(b) m_labels.size() " << m_labels.size() << std::endl;
 
-	export_local_maxima_as_cloud();
-
 	return 0;
+}
+
+bool G3PointAction::processNewStacks(std::vector<std::vector<int>>& stacks)
+{
+	if (!checkStacks(stacks, m_cloud->size()))
+	{
+		ccLog::Error("[G3PointAction::merge] newStacks is not valid");
+		return false;
+	}
+
+	ccLog::Print("[G3PointAction::processNewStacks] keep " + QString::number(stacks.size())
+				 + "/" + QString::number(m_stacks.size()) + " labels ("
+				 + QString::number(m_stacks.size() - stacks.size()) + " removed)");
+	QApplication::processEvents();
+
+	// new stacks are valid, set the class attribute
+	m_stacks = stacks;
+
+	updateLocalMaximumIndexes();
+
+	updateLabelsAndColors();
+
+	exportLocalMaximaAsCloud();
+
+	return true;
+}
+
+bool G3PointAction::merge(XXb& condition)
+{
+	std::vector<std::vector<int>> newStacks;
+	Eigen::ArrayXi newLabels = Eigen::ArrayXi::Ones(m_labels.size()) * (-1);
+	int countNewLabels = 0;
+	size_t nlabels = m_stacks.size();
+
+	if (condition.rows() != m_stacks.size()) // check that condition is validd
+	{
+		ccLog::Error("[G3PointAction::merge] the shape of the condition (" + QString::number(condition.rows())
+					 + ", " + QString::number(condition.cols())
+					 + ") is not coherent with the stacks size " + QString::number(m_stacks.size()));
+		return false;
+	}
+
+	for (int label = 0; label < nlabels; label++)
+	{
+
+		if (newLabels(label) == -1) // the label has not already been merged
+		{
+			newLabels(label) = countNewLabels;
+			newStacks.push_back(m_stacks[label]); // initialize a newStack with the stack of the current label
+			countNewLabels++;
+		}
+
+		for (int otherLabel = 0; otherLabel < nlabels; otherLabel++)
+		{
+
+			if (otherLabel == label)
+			{
+				continue; // do not try to merge a label with itself
+			}
+
+			// shall we merge otherLabel with label?
+			if (!condition(label, otherLabel))
+			{
+
+				std::vector<int>& labelStack = newStacks[newLabels(label)];
+
+				if (newLabels(otherLabel) != -1) // the other label has already been merged
+				{
+					std::vector<int>& otherLabelStack = newStacks[newLabels(otherLabel)];
+					if (newLabels(label) > newLabels(otherLabel)) // merge label in otherLabel
+					{
+						// add the label stack to the otherLabel stack
+						otherLabelStack.insert(otherLabelStack.end(), labelStack.begin(), labelStack.end()); // add the stack to the label stack
+						// empty the label stack
+						labelStack.clear();
+						// update the label
+						newLabels(label) = newLabels(otherLabel);
+					}
+					if (newLabels(label) < newLabels(otherLabel)) // merge otherLabel in label
+					{
+						// add the otherLabel stack to the label stack
+						labelStack.insert(labelStack.end(), otherLabelStack.begin(), otherLabelStack.end()); // add the stack to the label stack
+						// empty the otherLabel stack
+						otherLabelStack.clear();
+						// update the otherLabel
+						newLabels(otherLabel) = newLabels(label);
+					}
+				}
+				else  // merge otherLabel and label
+				{
+					std::vector<int>& otherLabelStack = m_stacks[otherLabel];
+					// add the otherLabel stack to the label stack
+					labelStack.insert(labelStack.end(), otherLabelStack.begin(), otherLabelStack.end()); // add the stack to the label stack
+					// update the otherLabel
+					newLabels(otherLabel) = newLabels(label);
+				}
+			}
+		}
+	}
+
+	// remove empty stacks
+	std::vector<std::vector<int>> newStacksWithoutEmpty;
+	for (auto& stack : newStacks)
+	{
+		if (!stack.empty())
+		{
+			newStacksWithoutEmpty.push_back(stack);
+		}
+	}
+
+	newStacks = newStacksWithoutEmpty;
+
+	processNewStacks(newStacks);
+
+	return true;
+}
+
+bool G3PointAction::keepLabels(Xb& condition)
+{
+	std::vector<std::vector<int>> newStacks;
+	size_t pointCount = 0;
+
+	// the first stack will contain the removed points
+	newStacks.push_back(std::vector<int>());
+
+	for (int index = 0; index < condition.size(); index++)
+	{
+		std::vector<int>& stack = m_stacks[index];
+		if (condition(index)) // if the condition is met, we keep the stack
+		{
+			newStacks.push_back(stack);
+			pointCount = pointCount + stack.size();
+		}
+		else
+		{
+			// add the stack to the default stack
+			newStacks[0].insert(newStacks[0].end(), stack.begin(), stack.end());
+		}
+	}
+
+	if (!processNewStacks(newStacks))
+	{
+		ccLog::Error("[G3PointAction::keepLabels] processing newStacks failed");
+	}
+
+	return true;
+}
+
+bool G3PointAction::cleanLabels()
+{
+	ccLog::Print("[cleanLabels]");
+
+	m_maxAngle2 = m_dlg->getMaxAngle2();
+	m_nMin = m_dlg->getNMin();
+	m_minFlatness = m_dlg->getMinFlatness();
+	size_t nGrains = m_stacks.size();
+
+	// merge points considering the normals at the border
+	{
+		ccLog::Print("[cleanLabels] merge points considering the normals at the border");
+		Eigen::ArrayXXd A = computeMeanAngle();
+		XXb condition = (A > m_maxAngle2) || (A != A)  || (Eigen::MatrixXi::Identity(nGrains, nGrains).array() == 1); // add true on the diagonal (important for the if hereafter)
+		XXb symmetrical_condition = (condition == condition.transpose()).select(condition, true);
+		if (condition.all())
+		{
+			ccLog::Print("[cleanLabels] nothing to merge, continue");
+		}
+		else
+		{
+			ccLog::Print("[cleanLabels] condition.count() " + QString::number(condition.count()) + " condition.size() " + QString::number(condition.size()));
+			merge(condition);
+		}
+
+		QApplication::processEvents();
+	}
+
+	//remove small labels
+	{
+		ccLog::Print("[cleanLabels] remove small labels");
+		Eigen::ArrayXi stackSize(m_stacks.size());
+		for (size_t k = 0; k < m_stacks.size(); k++)
+		{
+			stackSize(k) = m_stacks[k].size();
+		}
+		Xb condition = (stackSize > m_nMin);
+		size_t numberOfGrainsToKeep = condition.count();
+		if (numberOfGrainsToKeep == m_stacks.size())
+		{
+			ccLog::Print("[cleanLabels] all grains are larger than " + QString::number(m_nMin) + " points, nothing to remove");
+		}
+		else if (numberOfGrainsToKeep)
+		{
+			keepLabels(condition);
+		}
+		else
+		{
+			ccLog::Error("[cleanLabels] CANCEL: no remaining grain after removing those with less than " + QString::number(m_nMin) + " points");
+			return false;
+		}
+		QApplication::processEvents();
+	}
+
+	// remove flattish labels
+	// {
+	// 	ccLog::Print("[cleanLabels] remove flattish labels");
+	// 	Eigen::ArrayX3d s(m_stacks.size(), 3);
+	// 	for (size_t k = 0; k < m_stacks.size(); k++)
+	// 	{
+	// 		std::vector<int>& stack = m_stacks[k];
+	// 		// get the points of the label
+	// 		size_t nPoints = stack.size();
+	// 		Eigen::MatrixX3d points(nPoints, 3);
+	// 		for (int index = 0; index < nPoints; index++)
+	// 		{
+	// 			const CCVector3* point = m_cloud->getPoint(stack[index]);
+	// 			points(index, 0) = point->x;
+	// 			points(index, 1) = point->y;
+	// 			points(index, 2) = point->z;
+	// 		}
+	// 		// compute the centroid of the label
+	// 		Eigen::RowVector3d centroid = points.colwise().mean();
+	// 		points.rowwise() -= centroid;
+	// 		// SVD decomposition A = U S V∗
+	// 		s(k, Eigen::all) = points.jacobiSvd().singularValues();
+	// 		// filtering condition: (l2 / l0 > min_flatness) or (l1 / l0 > 2 * min_flatness)
+	// 		Xb condition = (s(Eigen::all, 2) / s(Eigen::all, 0) > m_minFlatness)
+	// 					   || (s(Eigen::all, 1) / s(Eigen::all, 0) > 2. * m_minFlatness);
+	// 		keepLabels(condition);
+	// 	}
+	// }
+
+	return true;
 }
 
 void G3PointAction::add_to_stack_braun_willett(int index, const Eigen::ArrayXi& delta, const Eigen::ArrayXi& Di, std::vector<int>& stack, int local_maximum)
@@ -1368,18 +1610,33 @@ void G3PointAction::segment()
 	// Perform initial segmentation
 	int nLabels = segment_labels_braun_willett();
 
-	export_local_maxima_as_cloud();
+	exportLocalMaximaAsCloud();
 
 	m_app->dispToConsole( "[G3Point] initial segmentation: " + QString::number(nLabels) + " labels", ccMainAppInterface::STD_CONSOLE_MESSAGE );
 
 	m_dlg->enableCluster(true);
+	m_dlg->enableClean(true);
 }
 
-void G3PointAction::segmentCluster()
+void G3PointAction::segmentAndCluster()
 {
 	segment();
 
 	cluster();
+}
+
+void G3PointAction::segmentAndClusterAndClean()
+{
+	segment();
+
+	cluster();
+
+	cleanLabels();
+}
+
+void G3PointAction::getBorders()
+{
+
 }
 
 void G3PointAction::init()
@@ -1406,7 +1663,11 @@ void G3PointAction::showDlg()
 
 		connect(m_dlg, &G3PointDialog::segment, s_g3PointAction, &G3Point::G3PointAction::segment);
 		connect(m_dlg, &G3PointDialog::cluster, s_g3PointAction, &G3Point::G3PointAction::cluster);
-		connect(m_dlg, &G3PointDialog::segmentCluster, s_g3PointAction, &G3Point::G3PointAction::segmentCluster);
+		connect(m_dlg, &G3PointDialog::segmentCluster, s_g3PointAction, &G3Point::G3PointAction::segmentAndCluster);
+		connect(m_dlg, &G3PointDialog::clean, s_g3PointAction, &G3Point::G3PointAction::cleanLabels);
+		connect(m_dlg, &G3PointDialog::segmentClusterClean, s_g3PointAction, &G3Point::G3PointAction::segmentAndClusterAndClean);
+		connect(m_dlg, &G3PointDialog::getBorders, s_g3PointAction, &G3Point::G3PointAction::getBorders);
+
 		connect(m_dlg, &QDialog::finished, s_g3PointAction, &G3Point::G3PointAction::clean);
 		connect(m_dlg, &QDialog::finished, s_g3PointAction, &G3Point::G3PointAction::resetDlg); // dialog is defined with Qt::WA_DeleteOnClose
 	}
