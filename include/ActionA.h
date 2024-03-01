@@ -32,9 +32,9 @@ public:
 	void segmentAndClusterAndClean();
 	void getBorders();
 	int cluster();
-	bool processNewStacks(std::vector<std::vector<int>>& stacks);
+	bool processNewStacks(std::vector<std::vector<int>>& stacks, int pointCount);
 	bool merge(XXb& condition);
-	bool keepLabels(Xb& condition);
+	bool keep(Xb& condition);
 	bool cleanLabels();
 	void clean();
 
@@ -43,7 +43,7 @@ private:
 	void add_to_stack(int index, const Eigen::ArrayXi& n_donors, const Eigen::ArrayXXi& donors, std::vector<int>& stack);
 	int segment_labels(bool useParallelStrategy=true);
 	double angle_rot_2_vec_mat(const Eigen::Vector3d &a, const Eigen::Vector3d &b);
-	Eigen::ArrayXXd computeMeanAngle();
+	Eigen::ArrayXXd computeMeanAngleBetweenNormalsAtBorders();
 	bool exportLocalMaximaAsCloud();
 	bool updateLocalMaximumIndexes();
 	bool updateLabelsAndColors();
@@ -72,8 +72,8 @@ private:
 	ccPointCloud* m_cloud;
 	ccMainAppInterface *m_app;
 	G3PointDialog* m_dlg;
-
-	Eigen::ArrayXXi m_neighbors_indexes;
+	
+	Eigen::ArrayXXi m_neighborsIndexes;
 	Eigen::ArrayXXd m_neighbors_distances;
 	Eigen::ArrayXXd m_neighbors_slopes;
 	Eigen::ArrayXXd m_normals;
