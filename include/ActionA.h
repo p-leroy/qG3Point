@@ -40,23 +40,23 @@ public:
 
 private:
 	bool sfConvertToRandomRGB(const ccHObject::Container &selectedEntities, QWidget* parent);
-	void add_to_stack(int index, const Eigen::ArrayXi& n_donors, const Eigen::ArrayXXi& donors, std::vector<int>& stack);
-	int segment_labels(bool useParallelStrategy=true);
-	double angle_rot_2_vec_mat(const Eigen::Vector3d &a, const Eigen::Vector3d &b);
+	void addToStack(int index, const Eigen::ArrayXi& n_donors, const Eigen::ArrayXXi& donors, std::vector<int>& stack);
+	int segmentLabels(bool useParallelStrategy=true);
+	double angleRot2VecMat(const Eigen::Vector3d &a, const Eigen::Vector3d &b);
 	Eigen::ArrayXXd computeMeanAngleBetweenNormalsAtBorders();
 	bool exportLocalMaximaAsCloud();
 	bool updateLocalMaximumIndexes();
 	bool updateLabelsAndColors();
 	bool checkStacks(const std::vector<std::vector<int>>& stacks, int count);
-	int segment_labels_steepest_slope(bool useParallelStrategy=true);
-	void add_to_stack_braun_willett(int index, const Eigen::ArrayXi& delta, const Eigen::ArrayXi &Di, std::vector<int>& stack, int local_maximum);
-	int segment_labels_braun_willett(bool useParallelStrategy=true);
-	void get_neighbors_distances_slopes(unsigned index);
-	void compute_node_surfaces();
-	bool compute_normals_and_orient_them_cloudcompare();
-	void orient_normals(const Eigen::Vector3d &sensorCenter);
-	bool compute_normals_with_open3d();
-	bool query_neighbors(ccPointCloud* cloud, ccMainAppInterface* appInterface, bool useParallelStrategy=true);
+	int segmentLabelsSteepestSlope(bool useParallelStrategy=true);
+	void addToStackBraunWillett(int index, const Eigen::ArrayXi& delta, const Eigen::ArrayXi &Di, std::vector<int>& stack, int local_maximum);
+	int segmentLabelsBraunWillett(bool useParallelStrategy=true);
+	void getNeighborsDistancesSlopes(unsigned index);
+	void computeNodeSurfaces();
+	bool computeNormalsAndOrientThemWithCloudCompare();
+	void orientNormals(const Eigen::Vector3d &sensorCenter);
+	bool computeNormalsWithOpen3D();
+	bool queryNeighbors(ccPointCloud* cloud, ccMainAppInterface* appInterface, bool useParallelStrategy=true);
 	void init();
 	void showDlg();
 	void resetDlg();
@@ -74,8 +74,8 @@ private:
 	G3PointDialog* m_dlg;
 	
 	Eigen::ArrayXXi m_neighborsIndexes;
-	Eigen::ArrayXXd m_neighbors_distances;
-	Eigen::ArrayXXd m_neighbors_slopes;
+	Eigen::ArrayXXd m_neighborsDistances;
+	Eigen::ArrayXXd m_neighborsSlopes;
 	Eigen::ArrayXXd m_normals;
 
 	Eigen::ArrayXi m_labels;

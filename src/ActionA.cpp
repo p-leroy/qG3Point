@@ -183,21 +183,21 @@ bool G3PointAction::sfConvertToRandomRGB(const ccHObject::Container &selectedEnt
 	return true;
 }
 
-void G3PointAction::add_to_stack(int index, const Eigen::ArrayXi& n_donors, const Eigen::ArrayXXi& donors, std::vector<int>& stack)
+void G3PointAction::addToStack(int index, const Eigen::ArrayXi& n_donors, const Eigen::ArrayXXi& donors, std::vector<int>& stack)
 {
 	stack.push_back(index);
 
 	for (int k = 0; k < n_donors(index); k++)
 	{
-		add_to_stack(donors(index, k), n_donors, donors, stack);
+		addToStack(donors(index, k), n_donors, donors, stack);
 	}
 }
 
-int G3PointAction::segment_labels(bool useParallelStrategy)
+int G3PointAction::segmentLabels(bool useParallelStrategy)
 {
 	std::cout << "[segment_labels]" << std::endl;
 	// for each point, find in the neighborhood the point with the minimum slope (the receiver)
-	Eigen::ArrayXd min_slopes(m_neighbors_slopes.rowwise().minCoeff());
+	Eigen::ArrayXd min_slopes(m_neighborsSlopes.rowwise().minCoeff());
 	Eigen::ArrayXi index_of_min_slope = Eigen::ArrayXi::Zero(m_cloud->size());
 	Eigen::ArrayXi receivers(m_cloud->size());
 
@@ -207,7 +207,7 @@ int G3PointAction::segment_labels(bool useParallelStrategy)
 		int count = 0;
 		for (int k = 0; k < m_kNN; k++)
 		{
-			if (m_neighbors_slopes(index, k) == min_slope)
+			if (m_neighborsSlopes(index, k) == min_slope)
 			{
 				index_of_min_slope(index) = k;
 				count++;
@@ -284,7 +284,7 @@ int G3PointAction::segment_labels(bool useParallelStrategy)
 	{
 		int localMaximumIndex = localMaximumIndexes(k);
 		std::vector<int> stack;
-		add_to_stack(localMaximumIndex, nDonors, donors, stack);
+		addToStack(localMaximumIndex, nDonors, donors, stack);
 		// labels
 		for (auto i : stack)
 		{
@@ -319,7 +319,7 @@ int G3PointAction::segment_labels(bool useParallelStrategy)
 	return nLabels;
 }
 
-double G3PointAction::angle_rot_2_vec_mat(const Eigen::Vector3d& a, const Eigen::Vector3d& b)
+double G3PointAction::angleRot2VecMat(const Eigen::Vector3d& a, const Eigen::Vector3d& b)
 {
 	double angle;
 	Eigen::Vector3d c;
@@ -383,7 +383,7 @@ Eigen::ArrayXXd G3PointAction::computeMeanAngleBetweenNormalsAtBorders()
 		{
 			// Take the normals vector for i and j
 			Eigen::Vector3d N2(m_normals(j, Eigen::all)); // normal at j
-			double angle = angle_rot_2_vec_mat(N1, N2);
+			double angle = angleRot2VecMat(N1, N2);
 			if (i < 27)
 			{
 				// std::cout << "INDBORDER i " << i << " j " "" << j << std::endl;
@@ -1053,7 +1053,7 @@ bool G3PointAction::cleanLabels()
 	return true;
 }
 
-void G3PointAction::add_to_stack_braun_willett(int index, const Eigen::ArrayXi& delta, const Eigen::ArrayXi& Di, std::vector<int>& stack, int local_maximum)
+void G3PointAction::addToStackBraunWillett(int index, const Eigen::ArrayXi& delta, const Eigen::ArrayXi& Di, std::vector<int>& stack, int local_maximum)
 {
 	stack.push_back(index);
 
@@ -1061,12 +1061,12 @@ void G3PointAction::add_to_stack_braun_willett(int index, const Eigen::ArrayXi& 
 	{
 		if (Di[k] != local_maximum) // avoid infinite loop
 		{
-			add_to_stack_braun_willett(Di[k], delta, Di, stack, local_maximum);
+			addToStackBraunWillett(Di[k], delta, Di, stack, local_maximum);
 		}
 	}
 }
 
-int G3PointAction::segment_labels_braun_willett(bool useParallelStrategy)
+int G3PointAction::segmentLabelsBraunWillett(bool useParallelStrategy)
 {
 	std::cout << "[segment_labels]" << std::endl;
 
@@ -1077,12 +1077,12 @@ int G3PointAction::segment_labels_braun_willett(bool useParallelStrategy)
 	if (steepestSlope)
 	{
 		std::cout << "[segment_labels] classical steepest slope algorithm [Braun, Willett 2013]" << std::endl;
-		extreme_slopes = m_neighbors_slopes.rowwise().maxCoeff();
+		extreme_slopes = m_neighborsSlopes.rowwise().maxCoeff();
 	}
 	else
 	{
 		std::cout << "[segment_labels] reversed version of the steepest slope algorithm [Braun, Willett 2013]" << std::endl;
-		extreme_slopes = m_neighbors_slopes.rowwise().minCoeff();
+		extreme_slopes = m_neighborsSlopes.rowwise().minCoeff();
 	}
 	Eigen::ArrayXi index_of_extreme_slope = Eigen::ArrayXi::Zero(m_cloud->size());
 	Eigen::ArrayXi receivers(m_cloud->size());
@@ -1092,7 +1092,7 @@ int G3PointAction::segment_labels_braun_willett(bool useParallelStrategy)
 		double extreme_slope = extreme_slopes(index);
 		for (int k = 0; k < m_kNN; k++)
 		{
-			if (m_neighbors_slopes(index, k) == extreme_slope)
+			if (m_neighborsSlopes(index, k) == extreme_slope)
 			{
 				index_of_extreme_slope(index) = k;
 				break;
@@ -1203,7 +1203,7 @@ int G3PointAction::segment_labels_braun_willett(bool useParallelStrategy)
 	{
 		int localMaximumIndex = m_localMaximumIndexes(k);
 		std::vector<int> stack;
-		add_to_stack_braun_willett(localMaximumIndex, delta, Di, stack, localMaximumIndex);
+		addToStackBraunWillett(localMaximumIndex, delta, Di, stack, localMaximumIndex);
 		// labels
 		for (auto i : stack)
 		{
@@ -1241,11 +1241,11 @@ int G3PointAction::segment_labels_braun_willett(bool useParallelStrategy)
 	return nLabels;
 }
 
-int G3PointAction::segment_labels_steepest_slope(bool useParallelStrategy)
+int G3PointAction::segmentLabelsSteepestSlope(bool useParallelStrategy)
 {
 	std::cout << "[segment_labels]" << std::endl;
 	// for each point, find in the neighborhood the point with the steepest slope (the receiver)
-	Eigen::ArrayXd steepest_slopes(m_neighbors_slopes.rowwise().maxCoeff());
+	Eigen::ArrayXd steepest_slopes(m_neighborsSlopes.rowwise().maxCoeff());
 	Eigen::ArrayXi index_of_steepest_slope = Eigen::ArrayXi::Zero(m_cloud->size());
 	Eigen::ArrayXi receivers(m_cloud->size());
 
@@ -1255,7 +1255,7 @@ int G3PointAction::segment_labels_steepest_slope(bool useParallelStrategy)
 		int count = 0;
 		for (int k = 0; k < m_kNN; k++)
 		{
-			if (m_neighbors_slopes(index, k) == steepest_slope)
+			if (m_neighborsSlopes(index, k) == steepest_slope)
 			{
 				index_of_steepest_slope(index) = k;
 				count++;
@@ -1332,7 +1332,7 @@ int G3PointAction::segment_labels_steepest_slope(bool useParallelStrategy)
 	{
 		int localMaximumIndex = m_localMaximumIndexes(k);
 		std::vector<int> stack;
-		add_to_stack(localMaximumIndex, nDonors, donors, stack);
+		addToStack(localMaximumIndex, nDonors, donors, stack);
 		// labels
 		for (auto i : stack)
 		{
@@ -1378,7 +1378,7 @@ int G3PointAction::segment_labels_steepest_slope(bool useParallelStrategy)
 	return nLabels;
 }
 
-void G3PointAction::get_neighbors_distances_slopes(unsigned index)
+void G3PointAction::getNeighborsDistancesSlopes(unsigned index)
 {
 	const CCVector3* P = m_cloud->getPoint(index);
 
@@ -1397,19 +1397,19 @@ void G3PointAction::get_neighbors_distances_slopes(unsigned index)
 			// compute the distance to the neighbor
 			const CCVector3* neighbor = Yk.getPoint(k + 1);
 			float distance = (*P - *neighbor).norm();
-			m_neighbors_distances(index, k) = distance;
+			m_neighborsDistances(index, k) = distance;
 			// compute the slope to the neighbor
-			m_neighbors_slopes(index, k) = (P->z - neighbor->z) / distance;
+			m_neighborsSlopes(index, k) = (P->z - neighbor->z) / distance;
 		}
 	}
 }
 
-void G3PointAction::compute_node_surfaces()
+void G3PointAction::computeNodeSurfaces()
 {
-	m_area = M_PI * m_neighbors_distances.rowwise().minCoeff().square();
+	m_area = M_PI * m_neighborsDistances.rowwise().minCoeff().square();
 }
 
-bool G3PointAction::compute_normals_and_orient_them_cloudcompare()
+bool G3PointAction::computeNormalsAndOrientThemWithCloudCompare()
 {
 	double radius = 1.; // one should set the radius value
 
@@ -1463,7 +1463,7 @@ bool G3PointAction::compute_normals_and_orient_them_cloudcompare()
 	return true;
 }
 
-void G3PointAction::orient_normals(const Eigen::Vector3d& sensorCenter)
+void G3PointAction::orientNormals(const Eigen::Vector3d& sensorCenter)
 {
 	int pointCloud = m_cloud->size();
 
@@ -1482,7 +1482,7 @@ void G3PointAction::orient_normals(const Eigen::Vector3d& sensorCenter)
 	}
 }
 
-bool G3PointAction::compute_normals_with_open3d()
+bool G3PointAction::computeNormalsWithOpen3D()
 {
 	// create an open3D point cloud from the original point cloud
 	std::vector<Eigen::Vector3d> points(m_cloud->size());
@@ -1549,7 +1549,7 @@ bool G3PointAction::compute_normals_with_open3d()
 	return true;
 }
 
-bool G3PointAction::query_neighbors(ccPointCloud* cloud, ccMainAppInterface* appInterface, bool useParallelStrategy)
+bool G3PointAction::queryNeighbors(ccPointCloud* cloud, ccMainAppInterface* appInterface, bool useParallelStrategy)
 {
 	std::cout << "[query_neighbor]" << std::endl;
 	QString errorStr;
@@ -1591,14 +1591,14 @@ bool G3PointAction::query_neighbors(ccPointCloud* cloud, ccMainAppInterface* app
 		int threadCount = std::max(1, ccQtHelpers::GetMaxThreadCount() - 2);
 		std::cout << "[query_neighbor] parallel strategy, thread count " << threadCount <<  std::endl;
 		QThreadPool::globalInstance()->setMaxThreadCount(threadCount);
-		QtConcurrent::blockingMap(pointsIndexes, [=](int index){get_neighbors_distances_slopes(index);});
+		QtConcurrent::blockingMap(pointsIndexes, [=](int index){getNeighborsDistancesSlopes(index);});
 	}
 	else
 	{
 		//manually call the static per-point method!
 		for (unsigned i = 0; i < nPoints; ++i)
 		{
-			get_neighbors_distances_slopes(i);
+			getNeighborsDistancesSlopes(i);
 		}
 	}
 
@@ -1610,11 +1610,11 @@ void G3PointAction::segment()
 	init();
 
 	// Find neighbors of each point of the cloud
-	query_neighbors(m_cloud, m_app, true);
+	queryNeighbors(m_cloud, m_app, true);
 
-	compute_node_surfaces();
+	computeNodeSurfaces();
 
-	compute_normals_with_open3d();
+	computeNormalsWithOpen3D();
 
 	// compute the centroid
 	int pointCount = m_cloud->size();
@@ -1629,10 +1629,10 @@ void G3PointAction::segment()
 	}
 
 	Eigen::Vector3d sensorCenter(G.x, G.y, 1000);
-	orient_normals(sensorCenter);
+	orientNormals(sensorCenter);
 
 	// Perform initial segmentation
-	int nLabels = segment_labels_braun_willett();
+	int nLabels = segmentLabelsBraunWillett();
 
 	exportLocalMaximaAsCloud();
 
@@ -1702,8 +1702,8 @@ void G3PointAction::init()
 
 	// initialize the matrices which will contain the results
 	m_neighborsIndexes = Eigen::ArrayXXi::Zero(m_cloud->size(), m_kNN);
-	m_neighbors_distances = Eigen::ArrayXXd::Zero(m_cloud->size(), m_kNN);
-	m_neighbors_slopes = Eigen::ArrayXXd::Zero(m_cloud->size(), m_kNN);
+	m_neighborsDistances = Eigen::ArrayXXd::Zero(m_cloud->size(), m_kNN);
+	m_neighborsSlopes = Eigen::ArrayXXd::Zero(m_cloud->size(), m_kNN);
 	m_normals = Eigen::ArrayXXd::Zero(m_cloud->size(), 3);
 
 	m_labels = Eigen::ArrayXi::Zero(m_cloud->size());
@@ -1745,8 +1745,8 @@ void G3PointAction::resetDlg()
 void G3PointAction::clean()
 {
 	m_neighborsIndexes.resize(0, 0);
-	m_neighbors_distances.resize(0, 0);
-	m_neighbors_slopes.resize(0, 0);
+	m_neighborsDistances.resize(0, 0);
+	m_neighborsSlopes.resize(0, 0);
 	m_normals.resize(0, 0);
 
 	m_labels.resize(0);
