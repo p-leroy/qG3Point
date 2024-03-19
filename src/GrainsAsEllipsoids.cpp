@@ -5,6 +5,7 @@
 #include <QOpenGLShaderProgram>
 
 #include <iostream>
+#include <random>
 
 GrainsAsEllipsoids::GrainsAsEllipsoids(ccPointCloud *cloud, ccMainAppInterface *app)
 	: m_cloud(cloud)
@@ -226,11 +227,10 @@ bool GrainsAsEllipsoids::drawSphere(CC_DRAW_CONTEXT& context, int colorIndex)
 	QOpenGLFunctions_2_1* glFunc = context.glFunctions<QOpenGLFunctions_2_1>();
 	assert(glFunc != nullptr);
 
-	const CCVector3f* center = m_cloud->getPoint(m_localMaximumIndexes[0]);
-	ccColor::Rgba color;
-	if (colorIndex < m_grainColors->size())
+	CCVector3f color;
+	if (colorIndex < m_grainColors.size())
 	{
-		color = m_grainColors->data()[colorIndex];
+		color = m_grainColors[colorIndex];
 	}
 	else
 	{
@@ -239,7 +239,6 @@ bool GrainsAsEllipsoids::drawSphere(CC_DRAW_CONTEXT& context, int colorIndex)
 	}
 
 	// set uniforms
-	m_program->setUniformValue("center", center->x, center->y, center->z);
 	QVector4D lightPosition(0, 0, 1, 0);
 	QVector4D lightAmbient(0.3f, 0.3f, 0.3f, 1); // grey
 	QVector4D lightDiffuse(0.7f, 0.7f, 0.7f, 1); // light grey
@@ -247,7 +246,7 @@ bool GrainsAsEllipsoids::drawSphere(CC_DRAW_CONTEXT& context, int colorIndex)
 //	QVector4D materialAmbient(0.5f, 0.5f, 0.5f, 1);
 	QVector4D materialDiffuse(0.7f, 0.7f, 0.7f, 1);
 	QVector4D materialSpecular(0.4f, 0.4f, 0.4f, 1);
-	QVector4D materialAmbient(static_cast<float>(color.r) / ccColor::MAX, static_cast<float>(color.g) / ccColor::MAX, static_cast<float>(color.b) / ccColor::MAX, 1);
+	QVector4D materialAmbient(color.x, color.y, color.z, 1);
 //	QVector4D materialDiffuse(color.r / ccColor::MAX, color.g / ccColor::MAX, color.b / ccColor::MAX, 1);
 //	QVector4D materialSpecular(color.r / ccColor::MAX, color.g / ccColor::MAX, color.b / ccColor::MAX, 1);
 	float materialShininess  = 16;
@@ -256,7 +255,6 @@ bool GrainsAsEllipsoids::drawSphere(CC_DRAW_CONTEXT& context, int colorIndex)
 	m_program->setUniformValue("lightAmbient", lightAmbient);
 	m_program->setUniformValue("lightDiffuse", lightDiffuse);
 	m_program->setUniformValue("lightSpecular", lightSpecular);
-	m_program->setUniformValue("materialAmbient", materialAmbient);
 	m_program->setUniformValue("materialDiffuse", materialDiffuse);
 	m_program->setUniformValue("materialSpecular", materialSpecular);
 	m_program->setUniformValue("materialShininess", materialShininess);
@@ -269,9 +267,48 @@ bool GrainsAsEllipsoids::drawSphere(CC_DRAW_CONTEXT& context, int colorIndex)
 	m_program->enableAttributeArray("vertexNormal");
 	m_program->enableAttributeArray("vertexTexCoord");
 
-	glFunc->glEnable(GL_PROGRAM_POINT_SIZE);
-	setUniformValueColor(ccColor::yellow);
-	glFunc->glDrawElements(GL_TRIANGLES, (unsigned int)indices.size(), GL_UNSIGNED_INT, indices.data());
+	QMatrix4x4 projection;
+	QMatrix4x4 modelView;
+
+	//generate random colors
+	std::mt19937 gen(42);  // to seed mersenne twister.
+	std::uniform_real_distribution<> dis(0.5, 1.0);
+	std::uniform_real_distribution<> dis2(-1., 1.0);
+
+	for (int k = 0; k < m_localMaximumIndexes.size(); k++)
+	{
+		const CCVector3f* center = m_cloud->getPoint(m_localMaximumIndexes[k]);
+		m_program->setUniformValue("center", center->x, center->y, center->z);
+		CCVector3f color = m_grainColors[k];
+		m_program->setUniformValue("materialAmbient", color.x, color.y, color.z, 1);
+
+		glFunc->glPushMatrix(); // save the current matrix
+		// translate
+		glFunc->glTranslatef(center->x, center->y, center->z);
+		// rotate
+		glFunc->glRotatef(90, static_cast<float>(dis2(gen)), static_cast<float>(dis2(gen)), static_cast<float>(dis2(gen)));
+		// scale
+		glFunc->glScalef(static_cast<float>(dis(gen)), static_cast<float>(dis(gen)), static_cast<float>(dis(gen)));
+		// get matrices
+		glFunc->glGetFloatv(GL_PROJECTION_MATRIX, projection.data());
+		glFunc->glGetFloatv(GL_MODELVIEW_MATRIX, modelView.data());
+		m_program->setUniformValue("modelViewProjectionMatrix", projection * modelView);
+
+		// draw triangles
+		m_program->setUniformValue("drawLines", 0);
+		glFunc->glEnable(GL_POLYGON_OFFSET_FILL);
+		glFunc->glPolygonOffset(1.0, 1.0f); // move polygon backward
+		glFunc->glDrawElements(GL_TRIANGLES, (unsigned int)indices.size(), GL_UNSIGNED_INT, indices.data());
+		glFunc->glDisable(GL_POLYGON_OFFSET_FILL);
+
+		// draw lines
+		m_program->setUniformValue("drawLines", 1);
+		glFunc->glDisable(GL_LIGHTING);
+		glFunc->glDisable(GL_TEXTURE_2D);
+		glFunc->glDrawElements(GL_LINES, (unsigned int)lineIndices.size(), GL_UNSIGNED_INT, lineIndices.data());
+
+		glFunc->glPopMatrix();
+	}
 
 	m_program->disableAttributeArray("vertexPosition");
 	m_program->disableAttributeArray("vertexNormal");
@@ -280,9 +317,17 @@ bool GrainsAsEllipsoids::drawSphere(CC_DRAW_CONTEXT& context, int colorIndex)
 	return true;
 }
 
-void GrainsAsEllipsoids::setGrainColorsTable(QSharedPointer<RGBAColorsTableType> colorTable)
+void GrainsAsEllipsoids::setGrainColorsTable(const RGBAColorsTableType& colorTable)
 {
-	m_grainColors = colorTable;
+	m_grainColors.resize(colorTable.size());
+
+	for (int k = 0; k < colorTable.size(); k++)
+	{
+		ccColor::Rgba color = colorTable[k];
+		m_grainColors[k] = CCVector3f(static_cast<float>(color.r) / ccColor::MAX,
+									  static_cast<float>(color.g) / ccColor::MAX,
+									  static_cast<float>(color.b) / ccColor::MAX);
+	}
 }
 
 void GrainsAsEllipsoids::setUniformValueColor(const ccColor::Rgba &color)

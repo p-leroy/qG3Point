@@ -84,7 +84,6 @@ RGBAColorsTableType getRandomColors(int randomColorsNumber)
 
 	//generate random colors
 	int max = 255;
-
 	std::mt19937 gen(42);  // to seed mersenne twister.
 	std::uniform_int_distribution<uint16_t> dist(0, max); //1-byte types are not allowed
 
@@ -1644,7 +1643,7 @@ void G3PointAction::segment()
 	m_grainsAsEllipsoids = new GrainsAsEllipsoids(m_cloud, m_app);
 	m_grainsAsEllipsoids->setLocalMaximumIndexes(m_localMaximumIndexes);
 	m_grainColors.reset(new RGBAColorsTableType(getRandomColors(m_localMaximumIndexes.size())));
-	m_grainsAsEllipsoids->setGrainColorsTable(m_grainColors);
+	m_grainsAsEllipsoids->setGrainColorsTable(*m_grainColors);
 	m_grainsAsEllipsoids->setName("grains as ellipsoids");
 	m_app->addToDB(m_grainsAsEllipsoids);
 

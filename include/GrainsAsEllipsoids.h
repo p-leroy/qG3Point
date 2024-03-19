@@ -39,7 +39,7 @@ public:
 
 	bool drawSphere(CC_DRAW_CONTEXT &context, int colorIndex=0);
 
-	void setGrainColorsTable(QSharedPointer<RGBAColorsTableType> colorTable);
+	void setGrainColorsTable(const RGBAColorsTableType& colorTable);
 
 	std::vector<float> vertices;
 	std::vector<float> normals;
@@ -82,7 +82,7 @@ public:
 	ccPointCloud* m_cloud;
 	ccMainAppInterface* m_app;
 	Eigen::ArrayXi m_localMaximumIndexes;
-	QSharedPointer<RGBAColorsTableType> m_grainColors;
+	std::vector<CCVector3f> m_grainColors;
 
 	std::vector<CCVector3f> m_ellipsoidInstance;
 	Eigen::ArrayX3f ellipsoidInstance;
