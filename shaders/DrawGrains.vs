@@ -1,17 +1,26 @@
-attribute vec3 vertexIn;
-attribute vec3 semiAxisLengths;
+#version 330
 
-/*out Vertex
-{
-  vec3 semiAxisLengths;
-} vertex;*/
-
+// uniforms
+uniform mat4 modelViewMatrix;
+uniform mat4 normalMatrix;
 uniform mat4 modelViewProjectionMatrix;
 uniform vec3 center;
+uniform int instanceId;
 
-void main(void)
+// in
+in vec3 vertexPosition;
+in vec3 vertexNormal;
+in vec2 vertexTexCoord;
+
+// out
+out vec3 esVertex;
+out vec3 esNormal;
+out vec2 texCoord0;
+
+void main()
 {
-	gl_PointSize = 5;
-	gl_Position = modelViewProjectionMatrix * vec4(vertexIn + center, 1.0);
-	//vertex.semiAxisLengths = semiAxisLengths;
+    esVertex = vec3(modelViewMatrix * vec4(vertexPosition, 1.0));
+    esNormal = vec3(normalMatrix * vec4(vertexNormal, 1.0));
+    texCoord0 = vertexTexCoord;
+	gl_Position = modelViewProjectionMatrix * vec4(vertexPosition, 1.0);
 }

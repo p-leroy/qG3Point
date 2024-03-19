@@ -39,8 +39,7 @@ bool GrainsAsEllipsoids::initProgram(QOpenGLContext* context)
 		m_program.reset(new QOpenGLShaderProgram(context));
 
 		// create vertex shader
-//		QString vertexShaderFile(m_shaderPath + "/DrawGrains.vs");
-		QString vertexShaderFile(m_shaderPath + "/ellipsoid.vs");
+		QString vertexShaderFile(m_shaderPath + "/DrawGrains.vs");
 		if (!m_program->addShaderFromSourceFile(QOpenGLShader::Vertex, vertexShaderFile))
 		{
 			error = m_program->log();
@@ -58,8 +57,7 @@ bool GrainsAsEllipsoids::initProgram(QOpenGLContext* context)
 //		}
 
 		// create fragment shader
-//		QString fragmentShaderFile(m_shaderPath + "/DrawGrains.fs");
-		QString fragmentShaderFile(m_shaderPath + "/ellipsoid.fs");
+		QString fragmentShaderFile(m_shaderPath + "/DrawGrains.fs");
 		if (!m_program->addShaderFromSourceFile(QOpenGLShader::Fragment, fragmentShaderFile))
 		{
 			error = m_program->log();
