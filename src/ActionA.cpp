@@ -10,6 +10,7 @@
 #include <ccScalarField.h>
 #include <CCGeom.h>
 #include <ccNormalVectors.h>
+#include <ccGLWindowInterface.h>
 
 #include <QMainWindow>
 #include <QCoreApplication>
@@ -23,6 +24,7 @@
 
 #include <G3PointDialog.h>
 #include <QPushButton>
+#include <QOpenGLShaderProgram>
 
 #include <open3d/geometry/PointCloud.h>
 
@@ -1638,6 +1640,14 @@ void G3PointAction::segment()
 
 	m_app->dispToConsole( "[G3Point] initial segmentation: " + QString::number(nLabels) + " labels", ccMainAppInterface::STD_CONSOLE_MESSAGE );
 
+	// plot display grains as ellipsoids
+	m_grainsAsEllipsoids = new GrainsAsEllipsoids(m_cloud, m_app);
+	m_grainsAsEllipsoids->setLocalMaximumIndexes(m_localMaximumIndexes);
+	m_grainColors.reset(new RGBAColorsTableType(getRandomColors(m_localMaximumIndexes.size())));
+	m_grainsAsEllipsoids->setGrainColorsTable(m_grainColors);
+	m_grainsAsEllipsoids->setName("grains as ellipsoids");
+	m_app->addToDB(m_grainsAsEllipsoids);
+
 	m_dlg->enableCluster(true);
 	m_dlg->enableClean(true);
 }
@@ -1794,4 +1804,5 @@ void G3PointAction::createAction(ccMainAppInterface *appInterface)
 
 	GetG3PointAction(ccHObjectCaster::ToPointCloud(ent), appInterface);
 }
+
 }

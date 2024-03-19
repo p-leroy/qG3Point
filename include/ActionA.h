@@ -8,6 +8,8 @@
 
 #include <G3PointDialog.h>
 
+#include <GrainsAsEllipsoids.h>
+
 #pragma once
 
 class ccMainAppInterface;
@@ -84,6 +86,8 @@ private:
 	Eigen::ArrayXi m_ndon;
 	Eigen::ArrayXd m_area;
 
+	QSharedPointer<RGBAColorsTableType> m_grainColors;
+
 	std::vector<std::vector<int>> m_stacks;
 
 	ccOctree::Shared m_octree;
@@ -91,5 +95,7 @@ private:
 	CCCoreLib::DgmOctree::NearestNeighboursSearchStruct m_nNSS;
 
 	static G3PointAction* s_g3PointAction;
+
+	GrainsAsEllipsoids* m_grainsAsEllipsoids;
 };
 }

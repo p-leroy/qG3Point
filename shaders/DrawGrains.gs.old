@@ -1,0 +1,86 @@
+#version 330 core
+layout (points) in;
+layout (line_strip, max_vertices = 200) out;
+
+in Vertex
+{
+  vec3 semiAxisLengths;
+} vertex[];
+
+uniform float normalLength;
+uniform mat4 modelViewProjectionMatrix;
+
+uniform float cosTheta[21];
+uniform float sinTheta[21];
+uniform float cosPhi[21];
+uniform float sinPhi[21];
+
+
+void main(void)
+{	
+	vec3 P = gl_in[0].gl_Position.xyz;
+	//vec3 semiAxisLengths = vertex[0].semiAxisLengths;
+	vec3 semiAxisLengths = vec3(0.1, 0.1, 0.1);
+
+	float x;
+	float y;
+	float z;
+	
+	
+	
+	int count = 0;
+	
+	for (int phi_i = 0; phi_i < 21; phi_i++)
+	{
+		if (phi_i == 0)
+		{
+			x = P.x;
+			y = P.y;
+			z = P.z + semiAxisLengths.z;
+			gl_Position = modelViewProjectionMatrix * vec4(x, y, z, 1.0);
+			EmitVertex();
+			count++;
+			if (count == 200)
+			{
+				EndPrimitive();
+				count = 0;
+			}
+		}
+		else if (phi_i == 20)
+		{
+			x = P.x;
+			y = P.y;
+			z = P.z - 1.;
+			gl_Position = modelViewProjectionMatrix * vec4(x, y, z, 1.0);
+			EmitVertex();
+			count++;
+			if (count == 200)
+			{
+				EndPrimitive();
+				count = 0;
+			}
+		}
+		else
+		{
+			for (int theta_i = 0; theta_i < 21; theta_i++)
+			{
+				//x = P.x + semiAxisLengths.x * sinTheta[theta_i] * cosPhi[phi_i];
+				//y = P.y + semiAxisLengths.y * sinTheta[theta_i] * sinPhi[phi_i];
+				//z = P.z + semiAxisLengths.z * cosTheta[theta_i];
+				x = P.x + semiAxisLengths.x * sinTheta[theta_i] * cosPhi[phi_i];
+				y = P.y + semiAxisLengths.y * sinTheta[theta_i] * sinPhi[phi_i];
+				z = P.z + semiAxisLengths.z * cosTheta[theta_i];
+				gl_Position = modelViewProjectionMatrix * vec4(x, y, z, 1.0);
+				EmitVertex();
+				count++;
+				if (count == 200)
+			{
+				EndPrimitive();
+				count = 0;
+			}
+			}
+		}
+	}
+	
+	EndPrimitive();
+}
