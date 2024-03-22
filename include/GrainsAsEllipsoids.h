@@ -22,24 +22,17 @@ public:
 	//! Set the path for shaders
 	void setShaderPath(const QString &path);
 
-	//! Release shaders (if any)
-	/** Must be called before the OpenGL context is released.
-	**/
-	void releaseShaders();
+	void setLocalMaximumIndexes(const Eigen::ArrayXi &localMaximumIndexes);
 
-	bool initProgram(QOpenGLContext* context);
+	void setGrainColorsTable(const RGBAColorsTableType& colorTable);
 
-	// <DRAW_SPHERE>
+	// INIT SPHERE
 
 	void initSphereVertices();
 
 	void initSphereIndexes();
 
 	void buildInterleavedVertices();
-
-	bool drawSphere(CC_DRAW_CONTEXT &context, int colorIndex=0);
-
-	void setGrainColorsTable(const RGBAColorsTableType& colorTable);
 
 	std::vector<float> vertices;
 	std::vector<float> normals;
@@ -54,30 +47,28 @@ public:
 
 	int interleavedStride = 32;
 
-	// </DRAW_SPHERE>
+	// ELLIPSOID FITTING
+
+
+
+	// DRAW
+
+	//! Release shaders (if any)
+	/** Must be called before the OpenGL context is released.
+	**/
+	void releaseShaders();
 
 	void setUniformValueColor(const ccColor::Rgba &color);
+
+	bool drawSphere(CC_DRAW_CONTEXT &context, int colorIndex=0);
+
+	bool initProgram(QOpenGLContext* context);
 
 	//! Draw grains as ellipsoids
 	void drawGrains(CC_DRAW_CONTEXT &context);
 
-	void setLocalMaximumIndexes(const Eigen::ArrayXi &localMaximumIndexes);
-
-	//! Colors of the normals when they are displayed
-	enum NormalLineColors{
-		YELLOW,
-		RED,
-		GREEN,
-		BLUE,
-		BLACK
-	};
-
-	struct NormalLineParameters
-	{
-		float length = 1.0f;
-		ccColor::Rgba color = ccColor::yellow;
-		int colorIdx = YELLOW;
-	} m_normalLineParameters;
+	// from ccHObject
+	void draw(CC_DRAW_CONTEXT& context);
 
 	ccPointCloud* m_cloud;
 	ccMainAppInterface* m_app;
@@ -91,9 +82,6 @@ public:
 
 	// Default path to the shader files
 	QString m_shaderPath;
-
-	// from ccHObject
-	void draw(CC_DRAW_CONTEXT& context);
 };
 
 #endif // GRAINSASELLIPSOIDS_H

@@ -19,85 +19,25 @@ void GrainsAsEllipsoids::setShaderPath(const QString& path)
 	m_shaderPath = path;
 }
 
-void GrainsAsEllipsoids::releaseShaders()
+void GrainsAsEllipsoids::setLocalMaximumIndexes(const Eigen::ArrayXi &localMaximumIndexes)
 {
-	m_program.clear();
+	m_localMaximumIndexes = localMaximumIndexes;
 }
 
-bool GrainsAsEllipsoids::initProgram(QOpenGLContext* context)
+void GrainsAsEllipsoids::setGrainColorsTable(const RGBAColorsTableType& colorTable)
 {
-	if (m_program.isNull())
+	m_grainColors.resize(colorTable.size());
+
+	for (int k = 0; k < colorTable.size(); k++)
 	{
-		QString error;
-
-		if (!context)
-		{
-			assert(false);
-			return false;
-		}
-
-		m_program.reset(new QOpenGLShaderProgram(context));
-
-		// create vertex shader
-		QString vertexShaderFile(m_shaderPath + "/DrawGrains.vs");
-		if (!m_program->addShaderFromSourceFile(QOpenGLShader::Vertex, vertexShaderFile))
-		{
-			error = m_program->log();
-			ccLog::Error(error);
-			return false;
-		}
-
-		// create geometry shader
-//		QString geometryShaderFile(m_shaderPath + "/DrawGrains.gs");
-//		if (!m_program->addShaderFromSourceFile(QOpenGLShader::Geometry, geometryShaderFile))
-//		{
-//			error = m_program->log();
-//			ccLog::Error(error);
-//			return false;
-//		}
-
-		// create fragment shader
-		QString fragmentShaderFile(m_shaderPath + "/DrawGrains.fs");
-		if (!m_program->addShaderFromSourceFile(QOpenGLShader::Fragment, fragmentShaderFile))
-		{
-			error = m_program->log();
-			ccLog::Error(error);
-			return false;
-		}
-
-		if (!m_program->link())
-		{
-			error = m_program->log();
-			ccLog::Error(error);
-			return false;
-		}
-
-		// initialize the ellipsoid instance
-		m_ellipsoidInstance.resize(401);
-		float stepTheta = M_PI / 21;
-		float stepPhi = 2 * M_PI / 21;
-		int count = 0;
-		CCVector3f center = *m_cloud->getPoint(m_localMaximumIndexes[0]);
-		m_ellipsoidInstance[count++] = CCVector3f(0, 0, 1);
-		for (int thetaI = 1; thetaI < 20; thetaI++)
-		{
-			for (int phiI = 0; phiI < 21; phiI++)
-			{
-				m_ellipsoidInstance[count++] = CCVector3f(center.x + sin(thetaI * stepTheta) * cos(phiI * stepPhi) * 1,
-														  center.y + sin(thetaI * stepTheta) * sin(phiI * stepPhi) * 1,
-														  center.z + cos(thetaI * stepTheta) * 1);
-			}
-		}
-		m_ellipsoidInstance[count++] = CCVector3f(0, 0, -1);
-
-		// initialize sphere
-		initSphereVertices();
-		initSphereIndexes();
-		buildInterleavedVertices();
+		ccColor::Rgba color = colorTable[k];
+		m_grainColors[k] = CCVector3f(static_cast<float>(color.r) / ccColor::MAX,
+									  static_cast<float>(color.g) / ccColor::MAX,
+									  static_cast<float>(color.b) / ccColor::MAX);
 	}
-
-	return true;
 }
+
+// INIT ORIGINAL SPHERE
 
 void GrainsAsEllipsoids::initSphereVertices()
 {
@@ -220,6 +160,95 @@ void GrainsAsEllipsoids::buildInterleavedVertices()
 	}
 }
 
+// ELLIPSOID FITTING
+
+// DRAW
+
+void GrainsAsEllipsoids::releaseShaders()
+{
+	m_program.clear();
+}
+
+void GrainsAsEllipsoids::setUniformValueColor(const ccColor::Rgba &color)
+{
+	m_program->setUniformValue("color", color.r, color.g, color.b, color.a);
+}
+
+bool GrainsAsEllipsoids::initProgram(QOpenGLContext* context)
+{
+	if (m_program.isNull())
+	{
+		QString error;
+
+		if (!context)
+		{
+			assert(false);
+			return false;
+		}
+
+		m_program.reset(new QOpenGLShaderProgram(context));
+
+		// create vertex shader
+		QString vertexShaderFile(m_shaderPath + "/DrawGrains.vs");
+		if (!m_program->addShaderFromSourceFile(QOpenGLShader::Vertex, vertexShaderFile))
+		{
+			error = m_program->log();
+			ccLog::Error(error);
+			return false;
+		}
+
+		// create geometry shader
+		//		QString geometryShaderFile(m_shaderPath + "/DrawGrains.gs");
+		//		if (!m_program->addShaderFromSourceFile(QOpenGLShader::Geometry, geometryShaderFile))
+		//		{
+		//			error = m_program->log();
+		//			ccLog::Error(error);
+		//			return false;
+		//		}
+
+		// create fragment shader
+		QString fragmentShaderFile(m_shaderPath + "/DrawGrains.fs");
+		if (!m_program->addShaderFromSourceFile(QOpenGLShader::Fragment, fragmentShaderFile))
+		{
+			error = m_program->log();
+			ccLog::Error(error);
+			return false;
+		}
+
+		if (!m_program->link())
+		{
+			error = m_program->log();
+			ccLog::Error(error);
+			return false;
+		}
+
+		// initialize the ellipsoid instance
+		m_ellipsoidInstance.resize(401);
+		float stepTheta = M_PI / 21;
+		float stepPhi = 2 * M_PI / 21;
+		int count = 0;
+		CCVector3f center = *m_cloud->getPoint(m_localMaximumIndexes[0]);
+		m_ellipsoidInstance[count++] = CCVector3f(0, 0, 1);
+		for (int thetaI = 1; thetaI < 20; thetaI++)
+		{
+			for (int phiI = 0; phiI < 21; phiI++)
+			{
+				m_ellipsoidInstance[count++] = CCVector3f(center.x + sin(thetaI * stepTheta) * cos(phiI * stepPhi) * 1,
+														  center.y + sin(thetaI * stepTheta) * sin(phiI * stepPhi) * 1,
+														  center.z + cos(thetaI * stepTheta) * 1);
+			}
+		}
+		m_ellipsoidInstance[count++] = CCVector3f(0, 0, -1);
+
+		// initialize sphere
+		initSphereVertices();
+		initSphereIndexes();
+		buildInterleavedVertices();
+	}
+
+	return true;
+}
+
 bool GrainsAsEllipsoids::drawSphere(CC_DRAW_CONTEXT& context, int colorIndex)
 {
 	QOpenGLFunctions_2_1* glFunc = context.glFunctions<QOpenGLFunctions_2_1>();
@@ -241,12 +270,12 @@ bool GrainsAsEllipsoids::drawSphere(CC_DRAW_CONTEXT& context, int colorIndex)
 	QVector4D lightAmbient(0.3f, 0.3f, 0.3f, 1); // grey
 	QVector4D lightDiffuse(0.7f, 0.7f, 0.7f, 1); // light grey
 	QVector4D lightSpecular(1.0f, 1.0f, 1.0f, 1); // RGB white
-//	QVector4D materialAmbient(0.5f, 0.5f, 0.5f, 1);
+	//	QVector4D materialAmbient(0.5f, 0.5f, 0.5f, 1);
 	QVector4D materialDiffuse(0.7f, 0.7f, 0.7f, 1);
 	QVector4D materialSpecular(0.4f, 0.4f, 0.4f, 1);
 	QVector4D materialAmbient(color.x, color.y, color.z, 1);
-//	QVector4D materialDiffuse(color.r / ccColor::MAX, color.g / ccColor::MAX, color.b / ccColor::MAX, 1);
-//	QVector4D materialSpecular(color.r / ccColor::MAX, color.g / ccColor::MAX, color.b / ccColor::MAX, 1);
+	//	QVector4D materialDiffuse(color.r / ccColor::MAX, color.g / ccColor::MAX, color.b / ccColor::MAX, 1);
+	//	QVector4D materialSpecular(color.r / ccColor::MAX, color.g / ccColor::MAX, color.b / ccColor::MAX, 1);
 	float materialShininess  = 16;
 
 	m_program->setUniformValue("lightPosition", lightPosition);
@@ -315,24 +344,6 @@ bool GrainsAsEllipsoids::drawSphere(CC_DRAW_CONTEXT& context, int colorIndex)
 	return true;
 }
 
-void GrainsAsEllipsoids::setGrainColorsTable(const RGBAColorsTableType& colorTable)
-{
-	m_grainColors.resize(colorTable.size());
-
-	for (int k = 0; k < colorTable.size(); k++)
-	{
-		ccColor::Rgba color = colorTable[k];
-		m_grainColors[k] = CCVector3f(static_cast<float>(color.r) / ccColor::MAX,
-									  static_cast<float>(color.g) / ccColor::MAX,
-									  static_cast<float>(color.b) / ccColor::MAX);
-	}
-}
-
-void GrainsAsEllipsoids::setUniformValueColor(const ccColor::Rgba &color)
-{
-	m_program->setUniformValue("color", color.r, color.g, color.b, color.a);
-}
-
 void GrainsAsEllipsoids::drawGrains(CC_DRAW_CONTEXT& context)
 {
 	if (!initProgram(context.qGLContext))
@@ -353,7 +364,6 @@ void GrainsAsEllipsoids::drawGrains(CC_DRAW_CONTEXT& context)
 	m_program->bind();
 	// set uniforms
 	m_program->setUniformValue("modelViewProjectionMatrix", projectionModelView);
-	m_program->setUniformValue("normalLength", GLfloat(m_normalLineParameters.length));
 
 	// get the coordinates of the local maxima
 	std::vector<CCVector3> semiAxisLengths(m_localMaximumIndexes.size(), CCVector3(1, 1, 1));
@@ -394,11 +404,6 @@ void GrainsAsEllipsoids::drawGrains(CC_DRAW_CONTEXT& context)
 	m_program->release();
 
 	m_app->redrawAll();
-}
-
-void GrainsAsEllipsoids::setLocalMaximumIndexes(const Eigen::ArrayXi &localMaximumIndexes)
-{
-	m_localMaximumIndexes = localMaximumIndexes;
 }
 
 void GrainsAsEllipsoids::draw(CC_DRAW_CONTEXT& context)
