@@ -7,9 +7,10 @@
 #include <iostream>
 #include <random>
 
-GrainsAsEllipsoids::GrainsAsEllipsoids(ccPointCloud *cloud, ccMainAppInterface *app)
+GrainsAsEllipsoids::GrainsAsEllipsoids(ccPointCloud *cloud, ccMainAppInterface *app, const std::vector<std::vector<int> >& stacks)
 	: m_cloud(cloud)
 	, m_app(app)
+	, m_stacks(stacks)
 {
 	setShaderPath("C:/dev/CloudCompare/plugins/private/qG3POINT/shaders");
 }
@@ -161,6 +162,184 @@ void GrainsAsEllipsoids::buildInterleavedVertices()
 }
 
 // ELLIPSOID FITTING
+
+bool GrainsAsEllipsoids::explicitToImplicit()
+{
+	return true;
+}
+
+bool GrainsAsEllipsoids::implicitToExplicit()
+{
+	return true;
+}
+
+Eigen::ArrayXf GrainsAsEllipsoids::directFit(const Eigen::ArrayX3f& xyz)
+{
+	std::cout << "[GrainsAsEllipsoids::directFit]" << std::endl;
+
+	Eigen::MatrixXf d(xyz.rows(), 10);
+
+	d << xyz(Eigen::all, 0).pow(2).matrix()
+		, xyz(Eigen::all, 1).pow(2).matrix()
+		, xyz(Eigen::all, 2).pow(2).matrix()
+		, (2 * xyz(Eigen::all, 1) * xyz(Eigen::all, 2)).matrix()
+		, (2 * xyz(Eigen::all, 0) * xyz(Eigen::all, 2)).matrix()
+		, (2 * xyz(Eigen::all, 0) * xyz(Eigen::all, 1)).matrix()
+		, (2 * xyz(Eigen::all, 0)).matrix()
+		, (2 * xyz(Eigen::all, 1)).matrix()
+		, (2 * xyz(Eigen::all, 2)).matrix()
+		, Eigen::MatrixXf::Ones(xyz.rows(), 1);
+
+	Eigen::MatrixXf s = d.transpose() * d;
+
+	int k = 4;
+	Eigen::Matrix3f c1;
+	Eigen::Matrix3f c2;
+	Eigen::MatrixXf c;
+	c = Eigen::MatrixXf::Zero(10, 10);
+	c1 << 0 , k , k
+		, k, 0, k
+		, k , k , 0;
+	c1 = c1.array() / 2 - 1;
+	c2 = -k * Eigen::Matrix3f::Identity();
+	c.block(0, 0, 3, 3) = c1;
+	c.block(3, 3, 3, 3) = c2;
+
+	Eigen::GeneralizedEigenSolver<Eigen::MatrixXf> eigensolver(s, c);
+	if (eigensolver.info() != Eigen::Success)
+	{
+		abort();
+	}
+
+	Eigen::ArrayXf eigenValues(10);
+	eigenValues = eigensolver.eigenvalues().real();
+	Xb condition = (eigenValues > 0) && (!eigenValues.isInf());
+
+	int flt = condition.count();
+	std::cout << "flt " << flt << std::endl;
+	Eigen::ArrayXf finiteValues(flt);
+	finiteValues = Eigen::ArrayXf::Zero(flt);
+	for (int k = 0; k < flt; k++)
+	{
+		if (condition(k))
+		{
+			finiteValues(k) = eigensolver.eigenvalues()(k).real();
+		}
+	}
+
+	std::cout << "eigenvalues eigenvectors" << std::endl;
+	std::cout << eigensolver.eigenvalues() << std::endl;
+	std::cout << eigensolver.eigenvectors() << std::endl;
+
+	float eigenValue;
+	Eigen::MatrixXf v;
+	switch (flt) {
+	case 1: // regular case
+		eigenValue = finiteValues(0); // there is only one finite value
+		for (k = 0; k < 10; k++)
+		{
+			if (eigenValues(k) == eigenValue)
+			{
+				v = eigensolver.eigenvectors()(Eigen::all, k).real();
+				break;
+			}
+		}
+		break;
+	case 0: // degenerate case
+		// # single positive eigenvalue becomes near-zero negative eigenvalue due to round-off error
+		eigenValue = finiteValues.abs().minCoeff();
+		for (k = 0; k < 10; k++)
+		{
+			if (eigenValues(k) == eigenValue)
+			{
+				v = eigensolver.eigenvectors()(Eigen::all, k).real();
+				break;
+			}
+		}
+		break;
+	default: // degenerate case
+		// several positive eigenvalues appear
+		eigenValue = finiteValues.abs().minCoeff();
+		for (k = 0; k < 10; k++)
+		{
+			if (eigenValues(k) == eigenValue)
+			{
+				v = eigensolver.eigenvectors()(Eigen::all, k).real();
+				break;
+			}
+		}
+		break;
+	}
+
+	std::cout << eigenValue << " " << std::endl << v << std::endl;
+
+	Eigen::ArrayXf p(10);
+	p << v(0), v(1), v(2)
+		, 2 * v(5), 2 * v(4), 2* v(3)
+		, 2 * v(6), 2 * v(7), 2 * v(8)
+		, v(9);
+
+	std::cout << "p " << std::endl << p << std::endl;
+
+	return p;
+}
+
+bool GrainsAsEllipsoids::fitEllipsoidToGrain(int grainIndex, const Method& method)
+{
+	// Shift point cloud to have only positive coordinates
+	// (problem with quadfit if the point cloud is far from the coordinates of the origin (0,0,0))
+
+	static bool firstPass = true;
+
+	if (firstPass)
+	{
+		// extract the point cloud related to the current index
+		CCCoreLib::ReferenceCloud referenceCloud(m_cloud);
+		for (int index : m_stacks[grainIndex])
+		{
+			referenceCloud.addPointIndex(index);
+		}
+
+		ccPointCloud* grainCloud = m_cloud->partialClone(&referenceCloud);
+		Eigen::Map<const Eigen::MatrixX3f, Eigen::Unaligned, Eigen::Stride<1, 3>>
+			grainPoints(static_cast<const float*>(grainCloud->getPoint(0)->u), grainCloud->size(), 3);
+
+		CCVector3 bbMin;
+		CCVector3 bbMax;
+		grainCloud->getBoundingBox(bbMin, bbMax);
+		CCVector3 bb(bbMax - bbMin);
+		Eigen::Vector3d scales(bb.x, bb.y, bb.z);
+		double scale = 1 / scales.maxCoeff();
+		Eigen::RowVector3f means = grainPoints.colwise().mean();
+
+		std::cout << "[GrainsAsEllipsoids::fitEllipsoidToGrain] index " << grainIndex << std::endl;
+		std::cout << "scale " << scale << std::endl;
+		std::cout << "means" << means << std::endl;
+
+		Eigen::ArrayXf p(10);
+
+		switch (method) {
+		case DIRECT:
+			// Direct least squares fitting of ellipsoids under the constraint 4J - I**2 > 0.
+			// The constraint confines the class of ellipsoids to fit to those whose smallest radius is at least half of the
+			// largest radius.
+
+			p = directFit(scale * (grainPoints.rowwise() - means)); // Ellipsoid fit
+
+			if (!implicitToExplicit()) // Get the explicit parameters
+			{
+
+			}
+			break;
+		default:
+			break;
+		}
+	}
+
+	firstPass = false;
+
+	return true;
+}
 
 // DRAW
 
@@ -399,6 +578,7 @@ void GrainsAsEllipsoids::drawGrains(CC_DRAW_CONTEXT& context)
 		m_program->setUniformValue("modelViewMatrix", modelView);
 		m_program->setUniformValue("normalMatrix", matrixNormal);
 		drawSphere(context, 0);
+		fitEllipsoidToGrain(0);
 	}
 
 	m_program->release();

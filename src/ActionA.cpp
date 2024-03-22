@@ -70,6 +70,7 @@ void G3PointAction::GetG3PointAction(ccPointCloud *cloud, ccMainAppInterface *ap
 	}
 	s_g3PointAction->showDlg();
 	s_g3PointAction->init();
+	s_g3PointAction->segment();
 }
 
 RGBAColorsTableType getRandomColors(int randomColorsNumber)
@@ -1640,7 +1641,7 @@ void G3PointAction::segment()
 	m_app->dispToConsole( "[G3Point] initial segmentation: " + QString::number(nLabels) + " labels", ccMainAppInterface::STD_CONSOLE_MESSAGE );
 
 	// plot display grains as ellipsoids
-	m_grainsAsEllipsoids = new GrainsAsEllipsoids(m_cloud, m_app);
+	m_grainsAsEllipsoids = new GrainsAsEllipsoids(m_cloud, m_app, m_stacks);
 	m_grainsAsEllipsoids->setLocalMaximumIndexes(m_localMaximumIndexes);
 	m_grainColors.reset(new RGBAColorsTableType(getRandomColors(m_localMaximumIndexes.size())));
 	m_grainsAsEllipsoids->setGrainColorsTable(*m_grainColors);

@@ -17,7 +17,9 @@ class ccPointCloud;
 class GrainsAsEllipsoids : public ccHObject
 {
 public:
-	GrainsAsEllipsoids(ccPointCloud *cloud, ccMainAppInterface* app);
+	typedef Eigen::Array<bool, Eigen::Dynamic, Eigen::Dynamic> Xb;
+
+	GrainsAsEllipsoids(ccPointCloud *cloud, ccMainAppInterface* app, const std::vector<std::vector<int> >& stacks);
 
 	//! Set the path for shaders
 	void setShaderPath(const QString &path);
@@ -49,7 +51,16 @@ public:
 
 	// ELLIPSOID FITTING
 
+	enum Method{
+		DIRECT = 0};
 
+	bool explicitToImplicit();
+
+	bool implicitToExplicit();
+
+	Eigen::ArrayXf directFit(const Eigen::ArrayX3f &xyz);
+
+	bool fitEllipsoidToGrain(int grainIndex, const Method& method=DIRECT);
 
 	// DRAW
 
@@ -73,6 +84,7 @@ public:
 	ccPointCloud* m_cloud;
 	ccMainAppInterface* m_app;
 	Eigen::ArrayXi m_localMaximumIndexes;
+	std::vector<std::vector<int>> m_stacks;
 	std::vector<CCVector3f> m_grainColors;
 
 	std::vector<CCVector3f> m_ellipsoidInstance;
