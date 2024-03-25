@@ -4,7 +4,6 @@
 uniform mat4 modelViewMatrix;
 uniform mat4 normalMatrix;
 uniform mat4 modelViewProjectionMatrix;
-uniform vec3 center;
 uniform int instanceId;
 
 // in

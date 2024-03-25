@@ -1,11 +1,14 @@
 #include "GrainsAsEllipsoids.h"
 
 #include <ccPointCloud.h>
+#include <ccGLMatrix.h>
 
 #include <QOpenGLShaderProgram>
 
 #include <iostream>
 #include <random>
+
+std::vector<int> indexes;
 
 GrainsAsEllipsoids::GrainsAsEllipsoids(ccPointCloud *cloud, ccMainAppInterface *app, const std::vector<std::vector<int> >& stacks)
 	: m_cloud(cloud)
@@ -13,6 +16,27 @@ GrainsAsEllipsoids::GrainsAsEllipsoids(ccPointCloud *cloud, ccMainAppInterface *
 	, m_stacks(stacks)
 {
 	setShaderPath("C:/dev/CloudCompare/plugins/private/qG3POINT/shaders");
+
+	m_center.resize(m_stacks.size());
+	m_radii.resize(m_stacks.size());
+	m_rotationMatrix.resize(m_stacks.size());
+
+	// fit all ellipsoids
+	std::cout << "[GrainsAsEllipsoids::GrainsAsEllipsoids] fit " << stacks.size() << " ellipsoids" << std::endl;
+
+	indexes.push_back(268);
+	indexes.push_back(351);
+
+	lockVisibility(false);
+
+	for (int idx : indexes)
+	{
+		fitEllipsoidToGrain(idx, m_center[idx], m_radii[idx], m_rotationMatrix[idx]);
+		std::cout << "grain " << idx << " stack size " << m_stacks[idx].size() << std::endl;
+		std::cout << "center " << std::endl << m_center[idx] << std::endl;
+		std::cout << "radii " << std::endl << m_radii[idx] << std::endl;
+		std::cout << "rotation matrix " << std::endl << m_rotationMatrix[idx] << std::endl;
+	}
 }
 
 void GrainsAsEllipsoids::setShaderPath(const QString& path)
@@ -42,7 +66,7 @@ void GrainsAsEllipsoids::setGrainColorsTable(const RGBAColorsTableType& colorTab
 
 void GrainsAsEllipsoids::initSphereVertices()
 {
-	float radius  = 0.2;
+	float radius  = 1.;
 
 	// clear memory of prev arrays
 	std::vector<float>().swap(vertices);
@@ -163,21 +187,134 @@ void GrainsAsEllipsoids::buildInterleavedVertices()
 
 // ELLIPSOID FITTING
 
-bool GrainsAsEllipsoids::explicitToImplicit()
+bool GrainsAsEllipsoids::explicitToImplicit(const Eigen::Array3f& center,
+													  const Eigen::Array3f& radii,
+													  const Eigen::Matrix3f& rotationMatrix,
+													  Eigen::ArrayXd& parameters)
 {
+	float xrr = 1 / radii(0);
+	float yrr = 1 / radii(1);
+	float zrr = 1 / radii(2);
+
+	float r11 = rotationMatrix.data()[0];
+	float r21 = rotationMatrix.data()[1];
+	float r31 = rotationMatrix.data()[2];
+	float r12 = rotationMatrix.data()[3];
+	float r22 = rotationMatrix.data()[4];
+	float r32 = rotationMatrix.data()[5];
+	float r13 = rotationMatrix.data()[6];
+	float r23 = rotationMatrix.data()[7];
+	float r33 = rotationMatrix.data()[8];
+
+	float xc = center(0);
+	float yc = center(1);
+	float zc = center(2);
+
+	// terms collected from symbolic expression
+
+	parameters << pow(r11, 2) * pow(xrr, 2) + pow(r21, 2) * pow(yrr, 2) + pow(r31, 2) * pow(zrr, 2),
+		pow(r12, 2) * pow(xrr, 2) + pow(r22, 2) * pow(yrr, 2) + pow(r32, 2) * pow(zrr, 2),
+		pow(r13, 2) * pow(xrr, 2) + pow(r23, 2) * pow(yrr, 2) + pow(r33, 2) * pow(zrr, 2),
+		2 * r11 * r12 * pow(xrr, 2) + 2 * r21 * r22 * pow(yrr, 2) + 2 * r31 * r32 * pow(zrr, 2),
+		2 * r11 * r13 * pow(xrr, 2) + 2 * r21 * r23 * pow(yrr, 2) + 2 * r31 * r33 * pow(zrr, 2),
+		2 * r12 * r13 * pow(xrr, 2) + 2 * r22 * r23 * pow(yrr, 2) + 2 * r32 * r33 * pow(zrr, 2),
+		(-2) * (pow(r11, 2) * xc * pow(xrr, 2) + pow(r21, 2) * xc * pow(yrr, 2) + pow(r31, 2) * xc * pow(zrr, 2)
+				+ r11 * r12 * pow(xrr, 2) * yc
+				+ r11 * r13 * pow(xrr, 2) * zc
+				+ r21 * r22 * yc * pow(yrr, 2)
+				+ r21 * r23 * pow(yrr, 2) * zc
+				+ r31 * r32 * yc * pow(zrr, 2)
+				+ r31 * r33 * zc * pow(zrr, 2)),
+		(-2) * (pow(r12, 2) * pow(xrr, 2) * yc + pow(r22, 2) * yc * pow(yrr, 2) + pow(r32, 2) * yc * pow(zrr, 2)
+				+ r11 * r12 * xc * pow(xrr, 2)
+				+ r21 * r22 * xc * pow(yrr, 2)
+				+ r12 * r13 * pow(xrr, 2) * zc
+				+ r31 * r32 * xc * pow(zrr, 2)
+				+ r22 * r23 * pow(yrr, 2) * zc
+				+ r32 * r33 * zc * pow(zrr, 2)),
+		(-2) * (pow(r13, 2)*pow(xrr, 2) * zc + pow(r23, 2) * pow(yrr, 2) * zc + pow(r33, 2) * zc * pow(zrr, 2)
+				+ r11 * r13 * xc * pow(xrr, 2)
+				+ r12 * r13 * pow(xrr, 2) * yc
+				+ r21 * r23 * xc * pow(yrr, 2)
+				+ r22 * r23 * yc * pow(yrr, 2)
+				+ r31 * r33 * xc * pow(zrr, 2)
+				+ r32 * r33 * yc * pow(zrr, 2)),
+		pow(r11, 2) * pow(xc, 2) * pow(xrr, 2)
+			+ 2 * r11 * r12 * xc * pow(xrr, 2) * yc
+			+ 2 * r11 * r13 * xc * pow(xrr, 2) * zc
+			+ pow(r12, 2) * pow(xrr, 2) * pow(yc, 2)
+			+ 2 * r12 * r13 * pow(xrr, 2) * yc * zc
+			+ pow(r13, 2) * pow(xrr, 2) * pow(zc, 2)
+			+ pow(r21, 2) *pow(xc, 2) * pow(yrr, 2)
+			+ 2 * r21 * r22 * xc * yc * pow(yrr, 2)
+			+ 2 * r21 * r23 * xc * pow(yrr, 2) * zc
+			+ pow(r22, 2) * pow(yc, 2) * pow(yrr, 2)
+			+ 2 * r22 * r23 * yc * pow(yrr, 2) * zc
+			+ pow(r23, 2) * pow(yrr, 2) * pow(zc, 2)
+			+ pow(r31, 2) * pow(xc, 2) * pow(zrr, 2)
+			+ 2 * r31 * r32 * xc * yc * pow(zrr, 2)
+			+ 2 * r31 * r33 * xc * zc * pow(zrr, 2)
+			+ pow(r32, 2) * pow(yc, 2) * pow(zrr, 2)
+			+ 2 * r32 * r33 * yc * zc * pow(zrr, 2)
+			+ pow(r33, 2) * pow(zc, 2) * pow(zrr, 2) - 1;
+
 	return true;
 }
 
-bool GrainsAsEllipsoids::implicitToExplicit()
+bool GrainsAsEllipsoids::implicitToExplicit(const Eigen::ArrayXd& parameters,
+											Eigen::Array3f& center,
+											Eigen::Array3f& radii,
+											Eigen::Matrix3f& rotationMatrix)
 {
+	Eigen::ArrayXd p = parameters;
+
+	p(3) = 0.5 * p(3);
+	p(4) = 0.5 * p(4);
+	p(5) = 0.5 * p(5);
+	p(6) = 0.5 * p(6);
+	p(7) = 0.5 * p(7);
+	p(8) = 0.5 * p(8);
+
+	Eigen::MatrixXd q(4, 4);
+
+	q << p(0), p(3), p(4), p(6)
+		, p(3), p(1), p(5), p(7)
+		, p(4), p(5), p(2), p(8)
+		, p(6), p(7), p(8), p(9);
+
+	center = q.block(0, 0, 3, 3).colPivHouseholderQr().solve(-p(Eigen::seq(6, 8)).matrix()).cast<float>();
+
+	Eigen::MatrixXd t(4, 4);
+	t = Eigen::MatrixXd::Identity(4, 4);
+	t(3, 0) = center(0);
+	t(3, 1) = center(1);
+	t(3, 2) = center(2);
+
+	Eigen::MatrixXd s(4, 4);
+	s = t * q * t.transpose();
+
+//	std::cout << "p " << std::endl << p << std::endl;
+//	std::cout << "q " << std::endl << q << std::endl;
+//	std::cout << "t " << std::endl << t << std::endl;
+//	std::cout << "s " << std::endl << s << std::endl;
+
+	Eigen::EigenSolver<Eigen::MatrixXd> eigensolver(s.block(0, 0, 3, 3));
+	if (eigensolver.info() != Eigen::Success)
+	{
+		abort();
+	}
+
+	radii = (-s(3, 3) / eigensolver.eigenvalues().array().real()).sqrt().cast<float>();
+	rotationMatrix = eigensolver.eigenvectors().transpose().real().cast<float>();
+
 	return true;
 }
 
-Eigen::ArrayXf GrainsAsEllipsoids::directFit(const Eigen::ArrayX3f& xyz)
+Eigen::ArrayXd GrainsAsEllipsoids::directFit(const Eigen::ArrayX3d& xyz)
 {
 	std::cout << "[GrainsAsEllipsoids::directFit]" << std::endl;
 
-	Eigen::MatrixXf d(xyz.rows(), 10);
+	Eigen::MatrixXd d(xyz.rows(), 10);
 
 	d << xyz(Eigen::all, 0).pow(2).matrix()
 		, xyz(Eigen::all, 1).pow(2).matrix()
@@ -188,54 +325,51 @@ Eigen::ArrayXf GrainsAsEllipsoids::directFit(const Eigen::ArrayX3f& xyz)
 		, (2 * xyz(Eigen::all, 0)).matrix()
 		, (2 * xyz(Eigen::all, 1)).matrix()
 		, (2 * xyz(Eigen::all, 2)).matrix()
-		, Eigen::MatrixXf::Ones(xyz.rows(), 1);
+		, Eigen::MatrixXd::Ones(xyz.rows(), 1);
 
-	Eigen::MatrixXf s = d.transpose() * d;
+	Eigen::MatrixXd s = d.transpose() * d;
 
 	int k = 4;
-	Eigen::Matrix3f c1;
-	Eigen::Matrix3f c2;
-	Eigen::MatrixXf c;
-	c = Eigen::MatrixXf::Zero(10, 10);
+	Eigen::Matrix3d c1;
+	Eigen::Matrix3d c2;
+	Eigen::MatrixXd c;
+	c = Eigen::MatrixXd::Zero(10, 10);
 	c1 << 0 , k , k
 		, k, 0, k
 		, k , k , 0;
 	c1 = c1.array() / 2 - 1;
-	c2 = -k * Eigen::Matrix3f::Identity();
+	c2 = - k * Eigen::Matrix3d::Identity();
 	c.block(0, 0, 3, 3) = c1;
 	c.block(3, 3, 3, 3) = c2;
 
-	Eigen::GeneralizedEigenSolver<Eigen::MatrixXf> eigensolver(s, c);
+	Eigen::GeneralizedEigenSolver<Eigen::MatrixXd> eigensolver(s, c);
 	if (eigensolver.info() != Eigen::Success)
 	{
 		abort();
 	}
 
-	Eigen::ArrayXf eigenValues(10);
+	Eigen::ArrayXd eigenValues(10);
 	eigenValues = eigensolver.eigenvalues().real();
 	Xb condition = (eigenValues > 0) && (!eigenValues.isInf());
 
 	int flt = condition.count();
-	std::cout << "flt " << flt << std::endl;
-	Eigen::ArrayXf finiteValues(flt);
-	finiteValues = Eigen::ArrayXf::Zero(flt);
-	for (int k = 0; k < flt; k++)
+//	std::cout << "flt " << flt << std::endl;
+	Eigen::ArrayXd finiteValues(flt);
+	finiteValues = Eigen::ArrayXd::Zero(flt);
+	int finiteValuesCounter = 0;
+	for (int k = 0; k < eigenValues.size(); k++)
 	{
 		if (condition(k))
 		{
-			finiteValues(k) = eigensolver.eigenvalues()(k).real();
+			finiteValues(finiteValuesCounter++) = eigenValues(k);
 		}
 	}
 
-	std::cout << "eigenvalues eigenvectors" << std::endl;
-	std::cout << eigensolver.eigenvalues() << std::endl;
-	std::cout << eigensolver.eigenvectors() << std::endl;
-
-	float eigenValue;
-	Eigen::MatrixXf v;
+	double eigenValue;
+	Eigen::MatrixXd v;
 	switch (flt) {
 	case 1: // regular case
-		eigenValue = finiteValues(0); // there is only one finite value
+		eigenValue = finiteValues(0); // there is only one positive finite value
 		for (k = 0; k < 10; k++)
 		{
 			if (eigenValues(k) == eigenValue)
@@ -271,74 +405,70 @@ Eigen::ArrayXf GrainsAsEllipsoids::directFit(const Eigen::ArrayX3f& xyz)
 		break;
 	}
 
-	std::cout << eigenValue << " " << std::endl << v << std::endl;
+	Eigen::ArrayXd p(10);
 
-	Eigen::ArrayXf p(10);
 	p << v(0), v(1), v(2)
 		, 2 * v(5), 2 * v(4), 2* v(3)
 		, 2 * v(6), 2 * v(7), 2 * v(8)
 		, v(9);
 
-	std::cout << "p " << std::endl << p << std::endl;
-
 	return p;
 }
 
-bool GrainsAsEllipsoids::fitEllipsoidToGrain(int grainIndex, const Method& method)
+bool GrainsAsEllipsoids::fitEllipsoidToGrain(const int grainIndex,
+											 Eigen::Array3f& center,
+											 Eigen::Array3f& radii,
+											 Eigen::Matrix3f& rotationMatrix,
+											 const Method& method)
 {
 	// Shift point cloud to have only positive coordinates
 	// (problem with quadfit if the point cloud is far from the coordinates of the origin (0,0,0))
 
-	static bool firstPass = true;
+	bool ret = true;
 
-	if (firstPass)
+	// extract the point cloud related to the current index
+	CCCoreLib::ReferenceCloud referenceCloud(m_cloud);
+	for (int index : m_stacks[grainIndex])
 	{
-		// extract the point cloud related to the current index
-		CCCoreLib::ReferenceCloud referenceCloud(m_cloud);
-		for (int index : m_stacks[grainIndex])
-		{
-			referenceCloud.addPointIndex(index);
-		}
-
-		ccPointCloud* grainCloud = m_cloud->partialClone(&referenceCloud);
-		Eigen::Map<const Eigen::MatrixX3f, Eigen::Unaligned, Eigen::Stride<1, 3>>
-			grainPoints(static_cast<const float*>(grainCloud->getPoint(0)->u), grainCloud->size(), 3);
-
-		CCVector3 bbMin;
-		CCVector3 bbMax;
-		grainCloud->getBoundingBox(bbMin, bbMax);
-		CCVector3 bb(bbMax - bbMin);
-		Eigen::Vector3d scales(bb.x, bb.y, bb.z);
-		double scale = 1 / scales.maxCoeff();
-		Eigen::RowVector3f means = grainPoints.colwise().mean();
-
-		std::cout << "[GrainsAsEllipsoids::fitEllipsoidToGrain] index " << grainIndex << std::endl;
-		std::cout << "scale " << scale << std::endl;
-		std::cout << "means" << means << std::endl;
-
-		Eigen::ArrayXf p(10);
-
-		switch (method) {
-		case DIRECT:
-			// Direct least squares fitting of ellipsoids under the constraint 4J - I**2 > 0.
-			// The constraint confines the class of ellipsoids to fit to those whose smallest radius is at least half of the
-			// largest radius.
-
-			p = directFit(scale * (grainPoints.rowwise() - means)); // Ellipsoid fit
-
-			if (!implicitToExplicit()) // Get the explicit parameters
-			{
-
-			}
-			break;
-		default:
-			break;
-		}
+		referenceCloud.addPointIndex(index);
 	}
 
-	firstPass = false;
+	ccPointCloud* grainCloud = m_cloud->partialClone(&referenceCloud);
+	Eigen::Map<const Eigen::MatrixX3f, Eigen::Unaligned, Eigen::Stride<1, 3>>
+		grainPoints(static_cast<const float*>(grainCloud->getPoint(0)->u), grainCloud->size(), 3);
 
-	return true;
+	CCVector3 bbMin;
+	CCVector3 bbMax;
+	grainCloud->getBoundingBox(bbMin, bbMax);
+	CCVector3 bb(bbMax - bbMin);
+	Eigen::Vector3d scales(bb.x, bb.y, bb.z);
+	double scale = 1 / scales.maxCoeff();
+	Eigen::RowVector3d means = grainPoints.cast<double>().colwise().mean();
+
+	Eigen::ArrayXd p(10);
+
+	switch (method) {
+	case DIRECT:
+		// Direct least squares fitting of ellipsoids under the constraint 4J - I**2 > 0.
+		// The constraint confines the class of ellipsoids to fit to those whose smallest radius is at least half of the
+		// largest radius.
+
+		p = directFit(scale * (grainPoints.cast<double>().rowwise() - means)); // Ellipsoid fit
+
+		implicitToExplicit(p, center, radii, rotationMatrix); // Get the explicit parameters
+
+		break;
+	default:
+		break;
+	}
+
+	// Rescale the explicit parameters (the rotation matrix is unchanged by the scaling)
+	center = center / scale + Eigen::Array3f(means.cast<float>());
+	radii = radii / scale;
+
+	ret = explicitToImplicit(center, radii, rotationMatrix, p);
+
+	return ret;
 }
 
 // DRAW
@@ -428,21 +558,12 @@ bool GrainsAsEllipsoids::initProgram(QOpenGLContext* context)
 	return true;
 }
 
-bool GrainsAsEllipsoids::drawSphere(CC_DRAW_CONTEXT& context, int colorIndex)
+bool GrainsAsEllipsoids::drawEllipsoids(CC_DRAW_CONTEXT& context)
 {
 	QOpenGLFunctions_2_1* glFunc = context.glFunctions<QOpenGLFunctions_2_1>();
 	assert(glFunc != nullptr);
 
 	CCVector3f color;
-	if (colorIndex < m_grainColors.size())
-	{
-		color = m_grainColors[colorIndex];
-	}
-	else
-	{
-		ccLog::Error("[GrainsAsEllipsoids::drawSphere] index is larger than the color table");
-		return false;
-	}
 
 	// set uniforms
 	QVector4D lightPosition(0, 0, 1, 0);
@@ -481,20 +602,27 @@ bool GrainsAsEllipsoids::drawSphere(CC_DRAW_CONTEXT& context, int colorIndex)
 	std::uniform_real_distribution<> dis(0.5, 1.0);
 	std::uniform_real_distribution<> dis2(-1., 1.0);
 
-	for (int k = 0; k < m_localMaximumIndexes.size(); k++)
+	for (int idx : indexes)
 	{
-		const CCVector3f* center = m_cloud->getPoint(m_localMaximumIndexes[k]);
-		m_program->setUniformValue("center", center->x, center->y, center->z);
-		CCVector3f color = m_grainColors[k];
-		m_program->setUniformValue("materialAmbient", color.x, color.y, color.z, 1);
+		Eigen::Matrix3f rotation(m_rotationMatrix[idx].transpose());
+		QMatrix4x4 matrixFromFit(rotation(0, 0), rotation(0, 1), rotation(0, 2), m_center[idx](0),
+								 rotation(1, 0), rotation(1, 1), rotation(1, 2), m_center[idx](1),
+								 rotation(2, 0), rotation(2, 1), rotation(2, 2), m_center[idx](2),
+								 0, 0, 0, 1);
 
+		color = m_grainColors[idx];
+		glFunc->glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		glFunc->glEnable( GL_BLEND );
+		m_program->setUniformValue("materialAmbient", color.x, color.y, color.z, 0.5);
+
+		// prepare translation, rotation and scaling
 		glFunc->glPushMatrix(); // save the current matrix
-		// translate
-		glFunc->glTranslatef(center->x, center->y, center->z);
-		// rotate
-		glFunc->glRotatef(90, static_cast<float>(dis2(gen)), static_cast<float>(dis2(gen)), static_cast<float>(dis2(gen)));
-		// scale
-		glFunc->glScalef(static_cast<float>(dis(gen)), static_cast<float>(dis(gen)), static_cast<float>(dis(gen)));
+
+		// rotation and translation from the ellipsoid fitting
+		glFunc->glMultMatrixf(matrixFromFit.data());
+		// scale from the ellipsoid fitting
+		glFunc->glScalef(m_radii[idx](0), m_radii[idx](1), m_radii[idx](2));
+
 		// get matrices
 		glFunc->glGetFloatv(GL_PROJECTION_MATRIX, projection.data());
 		glFunc->glGetFloatv(GL_MODELVIEW_MATRIX, modelView.data());
@@ -515,6 +643,90 @@ bool GrainsAsEllipsoids::drawSphere(CC_DRAW_CONTEXT& context, int colorIndex)
 
 		glFunc->glPopMatrix();
 	}
+
+	if (false)
+	{ // Matlab 22.36920946,  17.15421478, -11.2193826
+		Eigen::Matrix3f rotation;
+		rotation << -0.1424, -0.8175, -0.5580,
+			-0.9102, -0.1133,  0.3983,
+			0.3889, -0.5646, 0.7280;
+		rotation.transposeInPlace();
+		QMatrix4x4 matrixFromFit(rotation(0, 0), rotation(0, 1), rotation(0, 2), 22.36920946,
+								 rotation(1, 0), rotation(1, 1), rotation(1, 2), 17.15421478,
+								 rotation(2, 0), rotation(2, 1), rotation(2, 2), -11.2193826,
+								 0, 0, 0, 1);
+
+		color = CCVector3f(static_cast<float>(255) / ccColor::MAX,
+						   static_cast<float>(255) / ccColor::MAX,
+						   static_cast<float>(255) / ccColor::MAX);
+		m_program->setUniformValue("materialAmbient", color.x, color.y, color.z, 1);
+
+		// prepare translation, rotation and scaling
+		glFunc->glPushMatrix(); // save the current matrix
+
+		// rotation and translation from the ellipsoid fitting
+		glFunc->glMultMatrixf(matrixFromFit.data());
+		// scale from the ellipsoid fitting
+		glFunc->glScalef(0.6154, 0.5055, 0.3647);
+
+		// get matrices
+		glFunc->glGetFloatv(GL_PROJECTION_MATRIX, projection.data());
+		glFunc->glGetFloatv(GL_MODELVIEW_MATRIX, modelView.data());
+		m_program->setUniformValue("modelViewProjectionMatrix", projection * modelView);
+
+		// draw triangles
+		m_program->setUniformValue("drawLines", 0);
+		glFunc->glEnable(GL_POLYGON_OFFSET_FILL);
+		glFunc->glPolygonOffset(1.0, 1.0f); // move polygon backward
+		glFunc->glDrawElements(GL_TRIANGLES, (unsigned int)indices.size(), GL_UNSIGNED_INT, indices.data());
+		glFunc->glDisable(GL_POLYGON_OFFSET_FILL);
+
+		// draw lines
+		m_program->setUniformValue("drawLines", 1);
+		glFunc->glDisable(GL_LIGHTING);
+		glFunc->glDisable(GL_TEXTURE_2D);
+		glFunc->glDrawElements(GL_LINES, (unsigned int)lineIndices.size(), GL_UNSIGNED_INT, lineIndices.data());
+
+		glFunc->glPopMatrix();
+	}
+
+//	for (int k = 1; k < m_localMaximumIndexes.size(); k++)
+//	{
+//		if (k==indexOfGrainToFit)
+//			continue;
+
+//		const CCVector3f* center = m_cloud->getPoint(m_localMaximumIndexes[k]);
+//		CCVector3f color = m_grainColors[k];
+//		m_program->setUniformValue("materialAmbient", color.x, color.y, color.z, 1);
+
+//		// prepare translation, rotation and scaling
+//		glFunc->glPushMatrix(); // save the current matrix
+//		// translate
+//		glFunc->glTranslatef(center->x, center->y, center->z);
+//		// rotate
+//		glFunc->glRotatef(90, static_cast<float>(dis2(gen)), static_cast<float>(dis2(gen)), static_cast<float>(dis2(gen)));
+//		// scale
+//		glFunc->glScalef(static_cast<float>(dis(gen)), static_cast<float>(dis(gen)), static_cast<float>(dis(gen)));
+//		// get matrices
+//		glFunc->glGetFloatv(GL_PROJECTION_MATRIX, projection.data());
+//		glFunc->glGetFloatv(GL_MODELVIEW_MATRIX, modelView.data());
+//		m_program->setUniformValue("modelViewProjectionMatrix", projection * modelView);
+
+//		// draw triangles
+//		m_program->setUniformValue("drawLines", 0);
+//		glFunc->glEnable(GL_POLYGON_OFFSET_FILL);
+//		glFunc->glPolygonOffset(1.0, 1.0f); // move polygon backward
+//		glFunc->glDrawElements(GL_TRIANGLES, (unsigned int)indices.size(), GL_UNSIGNED_INT, indices.data());
+//		glFunc->glDisable(GL_POLYGON_OFFSET_FILL);
+
+//		// draw lines
+//		m_program->setUniformValue("drawLines", 1);
+//		glFunc->glDisable(GL_LIGHTING);
+//		glFunc->glDisable(GL_TEXTURE_2D);
+//		glFunc->glDrawElements(GL_LINES, (unsigned int)lineIndices.size(), GL_UNSIGNED_INT, lineIndices.data());
+
+//		glFunc->glPopMatrix();
+//	}
 
 	m_program->disableAttributeArray("vertexPosition");
 	m_program->disableAttributeArray("vertexNormal");
@@ -577,8 +789,7 @@ void GrainsAsEllipsoids::drawGrains(CC_DRAW_CONTEXT& context)
 		matrixNormal.setColumn(3, QVector4D(0,0,0,1));
 		m_program->setUniformValue("modelViewMatrix", modelView);
 		m_program->setUniformValue("normalMatrix", matrixNormal);
-		drawSphere(context, 0);
-		fitEllipsoidToGrain(0);
+		drawEllipsoids(context);
 	}
 
 	m_program->release();

@@ -54,13 +54,13 @@ public:
 	enum Method{
 		DIRECT = 0};
 
-	bool explicitToImplicit();
+	bool explicitToImplicit(const Eigen::Array3f& center, const Eigen::Array3f& radii, const Eigen::Matrix3f &rotationMatrix, Eigen::ArrayXd& parameters);
 
-	bool implicitToExplicit();
+	bool implicitToExplicit(const Eigen::ArrayXd& parameters, Eigen::Array3f& center, Eigen::Array3f& radii, Eigen::Matrix3f& rotationMatrix);
 
-	Eigen::ArrayXf directFit(const Eigen::ArrayX3f &xyz);
+	Eigen::ArrayXd directFit(const Eigen::ArrayX3d& xyz);
 
-	bool fitEllipsoidToGrain(int grainIndex, const Method& method=DIRECT);
+	bool fitEllipsoidToGrain(const int grainIndex, Eigen::Array3f& center, Eigen::Array3f& radii, Eigen::Matrix3f& rotationMatrix, const Method& method=DIRECT);
 
 	// DRAW
 
@@ -71,7 +71,7 @@ public:
 
 	void setUniformValueColor(const ccColor::Rgba &color);
 
-	bool drawSphere(CC_DRAW_CONTEXT &context, int colorIndex=0);
+	bool drawEllipsoids(CC_DRAW_CONTEXT &context);
 
 	bool initProgram(QOpenGLContext* context);
 
@@ -94,6 +94,10 @@ public:
 
 	// Default path to the shader files
 	QString m_shaderPath;
+
+	std::vector<Eigen::Array3f> m_center;
+	std::vector<Eigen::Array3f> m_radii;
+	std::vector<Eigen::Matrix3f> m_rotationMatrix;
 };
 
 #endif // GRAINSASELLIPSOIDS_H
