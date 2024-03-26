@@ -22,6 +22,14 @@ public:
 	void emitSegmentClusterClean(){emit segmentClusterClean();}
 	void emitGetBorders(){emit getBorders();}
 
+	void emitAllClicked(bool state){emit allClicked(state);}
+	void emitOnlyOneClicked(bool state){emit onlyOneClicked(state);}
+	void emitOnlyOneChanged(int idx){emit onlyOneChanged(idx);}
+	void emitFit(){emit fit();}
+	void emitTransparencyChanged(double transparency){emit transparencyChanged(transparency);}
+
+	void emitSignals();
+
 	double getMaxAngle1();
 	double getMaxAngle2();
 	double getMinFlatness();
@@ -34,6 +42,8 @@ public:
 	void enableCluster(bool state);
 	void enableClean(bool state);
 
+	void setOnlyOneMax(int idx);
+
 signals:
 	void segment();
 	void cluster();
@@ -41,6 +51,13 @@ signals:
 	void clean();
 	void segmentClusterClean();
 	void getBorders();
+
+	void allClicked(bool state);
+	void onlyOneClicked(bool state);
+	void onlyOneChanged(int idx);
+	void transparencyChanged(double transparency);
+
+	void fit();
 
 private:
 	Ui::qG3PointDialog *ui;

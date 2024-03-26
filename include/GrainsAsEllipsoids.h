@@ -12,10 +12,14 @@
 #include <ccMainAppInterface.h>
 #include <ccColorTypes.h>
 
+#include <set>
+
 class ccPointCloud;
 
-class GrainsAsEllipsoids : public ccHObject
+class GrainsAsEllipsoids : public QObject, public ccHObject
 {
+	Q_OBJECT
+
 public:
 	typedef Eigen::Array<bool, Eigen::Dynamic, Eigen::Dynamic> Xb;
 
@@ -54,11 +58,13 @@ public:
 	enum Method{
 		DIRECT = 0};
 
+	double ellipsoidDistance(const Eigen::ArrayXd& p, int idx);
+
 	bool explicitToImplicit(const Eigen::Array3f& center, const Eigen::Array3f& radii, const Eigen::Matrix3f &rotationMatrix, Eigen::ArrayXd& parameters);
 
 	bool implicitToExplicit(const Eigen::ArrayXd& parameters, Eigen::Array3f& center, Eigen::Array3f& radii, Eigen::Matrix3f& rotationMatrix);
 
-	Eigen::ArrayXd directFit(const Eigen::ArrayX3d& xyz);
+	bool directFit(const Eigen::ArrayX3d& xyz, Eigen::ArrayXd &parameters);
 
 	bool fitEllipsoidToGrain(const int grainIndex, Eigen::Array3f& center, Eigen::Array3f& radii, Eigen::Matrix3f& rotationMatrix, const Method& method=DIRECT);
 
@@ -71,6 +77,8 @@ public:
 
 	void setUniformValueColor(const ccColor::Rgba &color);
 
+	void drawEllipsoid(CC_DRAW_CONTEXT &context, int idx);
+
 	bool drawEllipsoids(CC_DRAW_CONTEXT &context);
 
 	bool initProgram(QOpenGLContext* context);
@@ -80,6 +88,14 @@ public:
 
 	// from ccHObject
 	void draw(CC_DRAW_CONTEXT& context);
+
+	void setOnlyOne(int i){m_onlyOne = i;}
+
+	void showOnlyOne(bool state){m_showAll =!state;}
+
+	void showAll(bool state);
+
+	void setTransparency(double transparency){m_transparency = transparency;}
 
 	ccPointCloud* m_cloud;
 	ccMainAppInterface* m_app;
@@ -98,6 +114,11 @@ public:
 	std::vector<Eigen::Array3f> m_center;
 	std::vector<Eigen::Array3f> m_radii;
 	std::vector<Eigen::Matrix3f> m_rotationMatrix;
+	std::set<int> m_fitNotOK;
+	double m_transparency = 1.0;
+
+	int m_onlyOne;
+	bool m_showAll{true};
 };
 
 #endif // GRAINSASELLIPSOIDS_H

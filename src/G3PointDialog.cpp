@@ -18,6 +18,13 @@ G3PointDialog::G3PointDialog(QString cloudName, QWidget *parent)
 	connect(this->ui->pushButtonClean, &QPushButton::clicked, this, &G3PointDialog::emitClean);
 	connect(this->ui->pushButtonSegmentClusterClean, &QPushButton::clicked, this, &G3PointDialog::emitSegmentClusterClean);
 	connect(this->ui->pushButtonGetBorders, &QPushButton::clicked, this, &G3PointDialog::emitGetBorders);
+
+	connect(this->ui->radioButtonAll, &QRadioButton::clicked, this, &G3PointDialog::emitAllClicked);
+	connect(this->ui->radioButtonOnlyOne, &QRadioButton::clicked, this, &::G3PointDialog::emitOnlyOneClicked);
+	connect(this->ui->spinBoxOnlyOne, qOverload<int>(&QSpinBox::valueChanged), this, &::G3PointDialog::emitOnlyOneChanged);
+
+	connect(this->ui->pushButtonFit, &QPushButton::clicked, this, &G3PointDialog::emitFit);
+	connect(this->ui->doubleSpinBoxTransparency, qOverload<double>(&QDoubleSpinBox::valueChanged), this, &G3PointDialog::emitTransparencyChanged);
 }
 
 G3PointDialog::~G3PointDialog()
@@ -73,4 +80,15 @@ void G3PointDialog::enableCluster(bool state)
 void G3PointDialog::enableClean(bool state)
 {
 	this->ui->pushButtonClean->setEnabled(state);
+}
+
+void G3PointDialog::emitSignals()
+{
+	emit allClicked(this->ui->radioButtonAll->isChecked());
+	emit emitOnlyOneChanged(this->ui->spinBoxOnlyOne->value());
+}
+
+void G3PointDialog::setOnlyOneMax(int max)
+{
+	this->ui->spinBoxOnlyOne->setMaximum(max);
 }

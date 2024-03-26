@@ -21,6 +21,7 @@ if ( PLUGIN_G3POINT )
 		C:/opt/eigen-3.4.0
 		C:/Users/PaulLeroy/miniconda3/envs/env_4_CloudCompare/include
 		C:/opt/open3d-devel-windows-amd64-0.18.0/include
+		C:/opt/GeometricTools/GTE
 	)
 	
 	# Find installed Open3D, which exports Open3D::Open3D

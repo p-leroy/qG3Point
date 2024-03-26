@@ -34,6 +34,7 @@ public:
 	void segmentAndClusterAndClean();
 	void getBorders();
 	int cluster();
+	void fit();
 	bool processNewStacks(std::vector<std::vector<int>>& stacks, int pointCount);
 	bool merge(XXb& condition);
 	bool keep(Xb& condition);

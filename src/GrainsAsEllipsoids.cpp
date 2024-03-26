@@ -8,7 +8,10 @@
 #include <iostream>
 #include <random>
 
-std::vector<int> indexes;
+// from GeometricTools/GTE
+#include <Mathematics/DistPointHyperellipsoid.h>
+#include <Mathematics/Vector2.h>
+#include <Mathematics/Vector3.h>
 
 GrainsAsEllipsoids::GrainsAsEllipsoids(ccPointCloud *cloud, ccMainAppInterface *app, const std::vector<std::vector<int> >& stacks)
 	: m_cloud(cloud)
@@ -24,18 +27,16 @@ GrainsAsEllipsoids::GrainsAsEllipsoids(ccPointCloud *cloud, ccMainAppInterface *
 	// fit all ellipsoids
 	std::cout << "[GrainsAsEllipsoids::GrainsAsEllipsoids] fit " << stacks.size() << " ellipsoids" << std::endl;
 
-	indexes.push_back(268);
-	indexes.push_back(351);
-
 	lockVisibility(false);
 
-	for (int idx : indexes)
+	for (int idx = 0; idx < m_stacks.size(); idx++)
 	{
-		fitEllipsoidToGrain(idx, m_center[idx], m_radii[idx], m_rotationMatrix[idx]);
-		std::cout << "grain " << idx << " stack size " << m_stacks[idx].size() << std::endl;
-		std::cout << "center " << std::endl << m_center[idx] << std::endl;
-		std::cout << "radii " << std::endl << m_radii[idx] << std::endl;
-		std::cout << "rotation matrix " << std::endl << m_rotationMatrix[idx] << std::endl;
+		if (!fitEllipsoidToGrain(idx, m_center[idx], m_radii[idx], m_rotationMatrix[idx]))
+		{
+			m_fitNotOK.insert(idx);
+			ccLog::Warning("[GrainsAsEllipsoids::GrainsAsEllipsoids] fit not possible for grain " + QString::number(idx)
+						   + " of size " + QString::number(m_stacks[idx].size()));
+		}
 	}
 }
 
@@ -187,6 +188,67 @@ void GrainsAsEllipsoids::buildInterleavedVertices()
 
 // ELLIPSOID FITTING
 
+double GrainsAsEllipsoids::ellipsoidDistance(const Eigen::ArrayXd& p, int idx)
+{
+	// Compute the mean distance between the points of the grain and the ellipsoid
+
+	// GTE Geometric Tools Engine
+
+	// center
+	gte::Vector3<double> center = {m_center[idx](0), m_center[idx](1), m_center[idx](2)};
+
+	// axis
+	std::array<gte::Vector3<double>, 3> axis;
+	axis[0] = {m_rotationMatrix[idx](0, 0), m_rotationMatrix[idx](1, 0), m_rotationMatrix[idx](2, 0)};
+	axis[1] = {m_rotationMatrix[idx](0, 1), m_rotationMatrix[idx](1, 1), m_rotationMatrix[idx](2, 1)};
+	axis[2] = {m_rotationMatrix[idx](0, 2), m_rotationMatrix[idx](1, 2), m_rotationMatrix[idx](2, 2)};
+
+	// extent
+	gte::Vector3<double> extent = {m_radii[idx](0), m_radii[idx](1), m_radii[idx](2)};
+
+	// create the ellipsoid
+	gte::Ellipsoid3<double> ellipsoid(center, axis, extent);
+
+	gte::DCPQuery<double, gte::Vector3<double>, gte::Ellipsoid3<double>> query;
+
+	std::vector<int> stack = m_stacks[idx];
+	double sum_a = 0; // distances with respect to the ellipsoid
+	double sum_b = 0; // distances with respect to the mean
+
+	//compute gravity center
+	size_t count = m_cloud->size();
+	CCVector3 mean(0, 0, 0);
+	for (int index : m_stacks[idx])
+	{
+		const CCVector3* P = m_cloud->getPoint(index);
+		mean.x += P->x;
+		mean.y += P->y;
+		mean.z += P->z;
+	}
+	mean.x = mean.x / count;
+	mean.y = mean.y / count;
+	mean.z = mean.z / count;
+
+	for (int index : stack)
+	{
+		const CCVector3 *P = m_cloud->getPoint(index);
+		gte::Vector3<double> P_gte = {P->x, P->y, P->z};
+		auto result = query(P_gte, ellipsoid);
+		sum_a = sum_a + pow(result.distance, 2);
+
+		CCVector3 P_minus_min = *P - CCVector3(mean.x, mean.y, mean.z);
+		sum_b = sum_b + P_minus_min.norm2d();
+	}
+
+	double r2 = 1 - sum_a / sum_b;
+
+	// in Matlab
+	// d = (x-xp).^2 + (y-yp).^2 + (z-zp).^2;
+	// r2 = 1 - sum((x-xp).^2 + (y-yp).^2 + (z-zp).^2)./sum((x-mean(x)).^2 + (y-mean(y)).^2 + (z-mean(z)).^2);
+
+	return r2;
+}
+
 bool GrainsAsEllipsoids::explicitToImplicit(const Eigen::Array3f& center,
 													  const Eigen::Array3f& radii,
 													  const Eigen::Matrix3f& rotationMatrix,
@@ -301,7 +363,7 @@ bool GrainsAsEllipsoids::implicitToExplicit(const Eigen::ArrayXd& parameters,
 	Eigen::EigenSolver<Eigen::MatrixXd> eigensolver(s.block(0, 0, 3, 3));
 	if (eigensolver.info() != Eigen::Success)
 	{
-		abort();
+		return false;
 	}
 
 	radii = (-s(3, 3) / eigensolver.eigenvalues().array().real()).sqrt().cast<float>();
@@ -310,10 +372,8 @@ bool GrainsAsEllipsoids::implicitToExplicit(const Eigen::ArrayXd& parameters,
 	return true;
 }
 
-Eigen::ArrayXd GrainsAsEllipsoids::directFit(const Eigen::ArrayX3d& xyz)
+bool GrainsAsEllipsoids::directFit(const Eigen::ArrayX3d& xyz, Eigen::ArrayXd& parameters)
 {
-	std::cout << "[GrainsAsEllipsoids::directFit]" << std::endl;
-
 	Eigen::MatrixXd d(xyz.rows(), 10);
 
 	d << xyz(Eigen::all, 0).pow(2).matrix()
@@ -345,11 +405,13 @@ Eigen::ArrayXd GrainsAsEllipsoids::directFit(const Eigen::ArrayX3d& xyz)
 	Eigen::GeneralizedEigenSolver<Eigen::MatrixXd> eigensolver(s, c);
 	if (eigensolver.info() != Eigen::Success)
 	{
-		abort();
+		return false;
 	}
 
 	Eigen::ArrayXd eigenValues(10);
+	Eigen::VectorXd eigenValuesAsAMatrix(10);
 	eigenValues = eigensolver.eigenvalues().real();
+	eigenValuesAsAMatrix = eigensolver.eigenvalues().real().matrix();
 	Xb condition = (eigenValues > 0) && (!eigenValues.isInf());
 
 	int flt = condition.count();
@@ -381,10 +443,10 @@ Eigen::ArrayXd GrainsAsEllipsoids::directFit(const Eigen::ArrayX3d& xyz)
 		break;
 	case 0: // degenerate case
 		// # single positive eigenvalue becomes near-zero negative eigenvalue due to round-off error
-		eigenValue = finiteValues.abs().minCoeff();
+		eigenValue = eigenValues.abs().minCoeff();
 		for (k = 0; k < 10; k++)
 		{
-			if (eigenValues(k) == eigenValue)
+			if (abs(eigenValues(k)) == eigenValue)
 			{
 				v = eigensolver.eigenvectors()(Eigen::all, k).real();
 				break;
@@ -405,14 +467,14 @@ Eigen::ArrayXd GrainsAsEllipsoids::directFit(const Eigen::ArrayX3d& xyz)
 		break;
 	}
 
-	Eigen::ArrayXd p(10);
+	parameters.resize(10);
 
-	p << v(0), v(1), v(2)
+	parameters << v(0), v(1), v(2)
 		, 2 * v(5), 2 * v(4), 2* v(3)
 		, 2 * v(6), 2 * v(7), 2 * v(8)
 		, v(9);
 
-	return p;
+	return true;
 }
 
 bool GrainsAsEllipsoids::fitEllipsoidToGrain(const int grainIndex,
@@ -453,9 +515,15 @@ bool GrainsAsEllipsoids::fitEllipsoidToGrain(const int grainIndex,
 		// The constraint confines the class of ellipsoids to fit to those whose smallest radius is at least half of the
 		// largest radius.
 
-		p = directFit(scale * (grainPoints.cast<double>().rowwise() - means)); // Ellipsoid fit
+		if(!directFit(scale * (grainPoints.cast<double>().rowwise() - means), p)) // Ellipsoid fit
+		{
+			return false;
+		}
 
-		implicitToExplicit(p, center, radii, rotationMatrix); // Get the explicit parameters
+		if (!implicitToExplicit(p, center, radii, rotationMatrix)) // Get the explicit parameters
+		{
+			return false;
+		}
 
 		break;
 	default:
@@ -558,62 +626,27 @@ bool GrainsAsEllipsoids::initProgram(QOpenGLContext* context)
 	return true;
 }
 
-bool GrainsAsEllipsoids::drawEllipsoids(CC_DRAW_CONTEXT& context)
+void GrainsAsEllipsoids::drawEllipsoid(CC_DRAW_CONTEXT& context, int idx)
 {
 	QOpenGLFunctions_2_1* glFunc = context.glFunctions<QOpenGLFunctions_2_1>();
 	assert(glFunc != nullptr);
 
-	CCVector3f color;
-
-	// set uniforms
-	QVector4D lightPosition(0, 0, 1, 0);
-	QVector4D lightAmbient(0.3f, 0.3f, 0.3f, 1); // grey
-	QVector4D lightDiffuse(0.7f, 0.7f, 0.7f, 1); // light grey
-	QVector4D lightSpecular(1.0f, 1.0f, 1.0f, 1); // RGB white
-	//	QVector4D materialAmbient(0.5f, 0.5f, 0.5f, 1);
-	QVector4D materialDiffuse(0.7f, 0.7f, 0.7f, 1);
-	QVector4D materialSpecular(0.4f, 0.4f, 0.4f, 1);
-	QVector4D materialAmbient(color.x, color.y, color.z, 1);
-	//	QVector4D materialDiffuse(color.r / ccColor::MAX, color.g / ccColor::MAX, color.b / ccColor::MAX, 1);
-	//	QVector4D materialSpecular(color.r / ccColor::MAX, color.g / ccColor::MAX, color.b / ccColor::MAX, 1);
-	float materialShininess  = 16;
-
-	m_program->setUniformValue("lightPosition", lightPosition);
-	m_program->setUniformValue("lightAmbient", lightAmbient);
-	m_program->setUniformValue("lightDiffuse", lightDiffuse);
-	m_program->setUniformValue("lightSpecular", lightSpecular);
-	m_program->setUniformValue("materialDiffuse", materialDiffuse);
-	m_program->setUniformValue("materialSpecular", materialSpecular);
-	m_program->setUniformValue("materialShininess", materialShininess);
-
-	m_program->setAttributeArray("vertexPosition", static_cast<GLfloat*>(vertices.data()), 3);
-	m_program->setAttributeArray("vertexNormal", static_cast<GLfloat*>(normals.data()), 3);
-	m_program->setAttributeArray("vertexTexCoord", static_cast<GLfloat*>(texCoords.data()), 2);
-
-	m_program->enableAttributeArray("vertexPosition");
-	m_program->enableAttributeArray("vertexNormal");
-	m_program->enableAttributeArray("vertexTexCoord");
-
-	QMatrix4x4 projection;
-	QMatrix4x4 modelView;
-
-	//generate random colors
-	std::mt19937 gen(42);  // to seed mersenne twister.
-	std::uniform_real_distribution<> dis(0.5, 1.0);
-	std::uniform_real_distribution<> dis2(-1., 1.0);
-
-	for (int idx : indexes)
+	if (!m_fitNotOK.count(idx))
 	{
+		QMatrix4x4 projection;
+		QMatrix4x4 modelView;
 		Eigen::Matrix3f rotation(m_rotationMatrix[idx].transpose());
 		QMatrix4x4 matrixFromFit(rotation(0, 0), rotation(0, 1), rotation(0, 2), m_center[idx](0),
 								 rotation(1, 0), rotation(1, 1), rotation(1, 2), m_center[idx](1),
 								 rotation(2, 0), rotation(2, 1), rotation(2, 2), m_center[idx](2),
 								 0, 0, 0, 1);
 
+		CCVector3f color;
+
 		color = m_grainColors[idx];
 		glFunc->glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-		glFunc->glEnable( GL_BLEND );
-		m_program->setUniformValue("materialAmbient", color.x, color.y, color.z, 0.5);
+		glFunc->glEnable(GL_BLEND);
+		m_program->setUniformValue("materialAmbient", color.x, color.y, color.z, 1.);
 
 		// prepare translation, rotation and scaling
 		glFunc->glPushMatrix(); // save the current matrix
@@ -643,9 +676,61 @@ bool GrainsAsEllipsoids::drawEllipsoids(CC_DRAW_CONTEXT& context)
 
 		glFunc->glPopMatrix();
 	}
+}
 
-	if (false)
-	{ // Matlab 22.36920946,  17.15421478, -11.2193826
+bool GrainsAsEllipsoids::drawEllipsoids(CC_DRAW_CONTEXT& context)
+{
+	QOpenGLFunctions_2_1* glFunc = context.glFunctions<QOpenGLFunctions_2_1>();
+	assert(glFunc != nullptr);
+
+	CCVector3f color;
+
+	// set uniforms
+	QVector4D lightPosition(0, 0, 1, 0);
+	QVector4D lightAmbient(0.3f, 0.3f, 0.3f, 1); // grey
+	QVector4D lightDiffuse(0.7f, 0.7f, 0.7f, 1); // light grey
+	QVector4D lightSpecular(1.0f, 1.0f, 1.0f, 1); // RGB white
+	//	QVector4D materialAmbient(0.5f, 0.5f, 0.5f, 1);
+	QVector4D materialDiffuse(0.7f, 0.7f, 0.7f, m_transparency);
+	QVector4D materialSpecular(0.4f, 0.4f, 0.4f, 1);
+	QVector4D materialAmbient(color.x, color.y, color.z, 1);
+	//	QVector4D materialDiffuse(color.r / ccColor::MAX, color.g / ccColor::MAX, color.b / ccColor::MAX, 1);
+	//	QVector4D materialSpecular(color.r / ccColor::MAX, color.g / ccColor::MAX, color.b / ccColor::MAX, 1);
+	float materialShininess  = 16;
+
+	m_program->setUniformValue("lightPosition", lightPosition);
+	m_program->setUniformValue("lightAmbient", lightAmbient);
+	m_program->setUniformValue("lightDiffuse", lightDiffuse);
+	m_program->setUniformValue("lightSpecular", lightSpecular);
+	m_program->setUniformValue("materialDiffuse", materialDiffuse);
+	m_program->setUniformValue("materialSpecular", materialSpecular);
+	m_program->setUniformValue("materialShininess", materialShininess);
+
+	m_program->setAttributeArray("vertexPosition", static_cast<GLfloat*>(vertices.data()), 3);
+	m_program->setAttributeArray("vertexNormal", static_cast<GLfloat*>(normals.data()), 3);
+	m_program->setAttributeArray("vertexTexCoord", static_cast<GLfloat*>(texCoords.data()), 2);
+
+	m_program->enableAttributeArray("vertexPosition");
+	m_program->enableAttributeArray("vertexNormal");
+	m_program->enableAttributeArray("vertexTexCoord");
+
+	QMatrix4x4 projection;
+	QMatrix4x4 modelView;
+
+	if (m_showAll)
+	{
+		for (int idx = 0; idx < m_stacks.size(); idx++)
+		{
+			drawEllipsoid(context, idx);
+		}
+	}
+	else
+	{
+		drawEllipsoid(context, m_onlyOne);
+	}
+
+	if (false) // Matlab fit of grain 351
+	{
 		Eigen::Matrix3f rotation;
 		rotation << -0.1424, -0.8175, -0.5580,
 			-0.9102, -0.1133,  0.3983,
@@ -690,44 +775,6 @@ bool GrainsAsEllipsoids::drawEllipsoids(CC_DRAW_CONTEXT& context)
 		glFunc->glPopMatrix();
 	}
 
-//	for (int k = 1; k < m_localMaximumIndexes.size(); k++)
-//	{
-//		if (k==indexOfGrainToFit)
-//			continue;
-
-//		const CCVector3f* center = m_cloud->getPoint(m_localMaximumIndexes[k]);
-//		CCVector3f color = m_grainColors[k];
-//		m_program->setUniformValue("materialAmbient", color.x, color.y, color.z, 1);
-
-//		// prepare translation, rotation and scaling
-//		glFunc->glPushMatrix(); // save the current matrix
-//		// translate
-//		glFunc->glTranslatef(center->x, center->y, center->z);
-//		// rotate
-//		glFunc->glRotatef(90, static_cast<float>(dis2(gen)), static_cast<float>(dis2(gen)), static_cast<float>(dis2(gen)));
-//		// scale
-//		glFunc->glScalef(static_cast<float>(dis(gen)), static_cast<float>(dis(gen)), static_cast<float>(dis(gen)));
-//		// get matrices
-//		glFunc->glGetFloatv(GL_PROJECTION_MATRIX, projection.data());
-//		glFunc->glGetFloatv(GL_MODELVIEW_MATRIX, modelView.data());
-//		m_program->setUniformValue("modelViewProjectionMatrix", projection * modelView);
-
-//		// draw triangles
-//		m_program->setUniformValue("drawLines", 0);
-//		glFunc->glEnable(GL_POLYGON_OFFSET_FILL);
-//		glFunc->glPolygonOffset(1.0, 1.0f); // move polygon backward
-//		glFunc->glDrawElements(GL_TRIANGLES, (unsigned int)indices.size(), GL_UNSIGNED_INT, indices.data());
-//		glFunc->glDisable(GL_POLYGON_OFFSET_FILL);
-
-//		// draw lines
-//		m_program->setUniformValue("drawLines", 1);
-//		glFunc->glDisable(GL_LIGHTING);
-//		glFunc->glDisable(GL_TEXTURE_2D);
-//		glFunc->glDrawElements(GL_LINES, (unsigned int)lineIndices.size(), GL_UNSIGNED_INT, lineIndices.data());
-
-//		glFunc->glPopMatrix();
-//	}
-
 	m_program->disableAttributeArray("vertexPosition");
 	m_program->disableAttributeArray("vertexNormal");
 	m_program->disableAttributeArray("vertexTexCoord");
@@ -756,18 +803,18 @@ void GrainsAsEllipsoids::drawGrains(CC_DRAW_CONTEXT& context)
 	// set uniforms
 	m_program->setUniformValue("modelViewProjectionMatrix", projectionModelView);
 
-	// get the coordinates of the local maxima
-	std::vector<CCVector3> semiAxisLengths(m_localMaximumIndexes.size(), CCVector3(1, 1, 1));
-	std::vector<CCVector3f> centers(m_localMaximumIndexes.size());
-
-	// initialize the vector containing the centers of the grains
-	for (int index = 0; index < m_localMaximumIndexes.size(); index++)
-	{
-		centers[index] = *m_cloud->getPoint(m_localMaximumIndexes[index]);
-	}
-
 	if (false)
 	{
+		// get the coordinates of the local maxima
+		std::vector<CCVector3> semiAxisLengths(m_localMaximumIndexes.size(), CCVector3(1, 1, 1));
+		std::vector<CCVector3f> centers(m_localMaximumIndexes.size());
+
+		// initialize the vector containing the centers of the grains
+		for (int index = 0; index < m_localMaximumIndexes.size(); index++)
+		{
+			centers[index] = *m_cloud->getPoint(m_localMaximumIndexes[index]);
+		}
+
 		m_program->setAttributeArray("vertexIn", static_cast<GLfloat*>(vertices.data()), 3);
 		m_program->setAttributeArray("semiAxisLengths", static_cast<GLfloat*>(semiAxisLengths.front().u), 3);
 
@@ -801,3 +848,12 @@ void GrainsAsEllipsoids::draw(CC_DRAW_CONTEXT& context)
 {
 	drawGrains(context);
 }
+
+void GrainsAsEllipsoids::showAll(bool state)
+{
+	m_showAll = state;
+	ccLog::Warning("[GrainsAsEllipsoids::showAll] changed " + QString::number(m_showAll));
+}
+
+
+

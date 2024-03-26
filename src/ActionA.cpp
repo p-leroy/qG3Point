@@ -957,6 +957,27 @@ int G3PointAction::cluster()
 	return 0;
 }
 
+void G3PointAction::fit()
+{
+	// plot display grains as ellipsoids
+	m_grainsAsEllipsoids = new GrainsAsEllipsoids(m_cloud, m_app, m_stacks);
+	m_grainsAsEllipsoids->setLocalMaximumIndexes(m_localMaximumIndexes);
+	m_grainColors.reset(new RGBAColorsTableType(getRandomColors(m_localMaximumIndexes.size())));
+	m_grainsAsEllipsoids->setGrainColorsTable(*m_grainColors);
+	m_grainsAsEllipsoids->setName("grains as ellipsoids");
+
+	// add connections with the dialog
+	connect(m_dlg, &G3PointDialog::onlyOneClicked, m_grainsAsEllipsoids, &GrainsAsEllipsoids::showOnlyOne);
+	connect(m_dlg, &G3PointDialog::allClicked, m_grainsAsEllipsoids, &GrainsAsEllipsoids::showAll);
+	connect(m_dlg, &G3PointDialog::onlyOneChanged, m_grainsAsEllipsoids, &GrainsAsEllipsoids::setOnlyOne);
+	connect(m_dlg, &G3PointDialog::transparencyChanged, m_grainsAsEllipsoids, &GrainsAsEllipsoids::setTransparency);
+
+	m_dlg->setOnlyOneMax(m_stacks.size());
+	m_dlg->emitSignals(); // force to send parameters to m_grainsAsEllipsoids
+
+	m_app->addToDB(m_grainsAsEllipsoids);
+}
+
 bool G3PointAction::cleanLabels()
 {
 	ccLog::Print("[cleanLabels]");
@@ -1640,14 +1661,6 @@ void G3PointAction::segment()
 
 	m_app->dispToConsole( "[G3Point] initial segmentation: " + QString::number(nLabels) + " labels", ccMainAppInterface::STD_CONSOLE_MESSAGE );
 
-	// plot display grains as ellipsoids
-	m_grainsAsEllipsoids = new GrainsAsEllipsoids(m_cloud, m_app, m_stacks);
-	m_grainsAsEllipsoids->setLocalMaximumIndexes(m_localMaximumIndexes);
-	m_grainColors.reset(new RGBAColorsTableType(getRandomColors(m_localMaximumIndexes.size())));
-	m_grainsAsEllipsoids->setGrainColorsTable(*m_grainColors);
-	m_grainsAsEllipsoids->setName("grains as ellipsoids");
-	m_app->addToDB(m_grainsAsEllipsoids);
-
 	m_dlg->enableCluster(true);
 	m_dlg->enableClean(true);
 }
@@ -1734,6 +1747,8 @@ void G3PointAction::showDlg()
 		connect(m_dlg, &G3PointDialog::clean, s_g3PointAction, &G3Point::G3PointAction::cleanLabels);
 		connect(m_dlg, &G3PointDialog::segmentClusterClean, s_g3PointAction, &G3Point::G3PointAction::segmentAndClusterAndClean);
 		connect(m_dlg, &G3PointDialog::getBorders, s_g3PointAction, &G3Point::G3PointAction::getBorders);
+
+		connect(m_dlg, &G3PointDialog::fit, s_g3PointAction, &G3Point::G3PointAction::fit);
 
 		connect(m_dlg, &QDialog::finished, s_g3PointAction, &G3Point::G3PointAction::clean);
 		connect(m_dlg, &QDialog::finished, s_g3PointAction, &G3Point::G3PointAction::resetDlg); // dialog is defined with Qt::WA_DeleteOnClose
