@@ -27,6 +27,10 @@ public:
 	void emitOnlyOneChanged(int idx){emit onlyOneChanged(idx);}
 	void emitFit(){emit fit();}
 	void emitTransparencyChanged(double transparency){emit transparencyChanged(transparency);}
+	void emitDrawSurfaces(bool state){emit drawSurfaces(state);}
+	void emitDrawLines(bool state){emit drawLines(state);}
+	void emitDrawPoints(bool state){emit drawPoints(state);}
+	void emitGLPointSizeChanged(int size){emit glPointSize(size);}
 
 	void emitSignals();
 
@@ -43,6 +47,7 @@ public:
 	void enableClean(bool state);
 
 	void setOnlyOneMax(int idx);
+	void enableDrawPointsForOnlyOneGrain(bool state);
 
 signals:
 	void segment();
@@ -51,13 +56,16 @@ signals:
 	void clean();
 	void segmentClusterClean();
 	void getBorders();
+	void fit();
 
 	void allClicked(bool state);
 	void onlyOneClicked(bool state);
 	void onlyOneChanged(int idx);
 	void transparencyChanged(double transparency);
-
-	void fit();
+	void drawSurfaces(bool state);
+	void drawLines(bool state);
+	void drawPoints(bool state);
+	void glPointSize(int size);
 
 private:
 	Ui::qG3PointDialog *ui;

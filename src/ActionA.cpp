@@ -971,6 +971,10 @@ void G3PointAction::fit()
 	connect(m_dlg, &G3PointDialog::allClicked, m_grainsAsEllipsoids, &GrainsAsEllipsoids::showAll);
 	connect(m_dlg, &G3PointDialog::onlyOneChanged, m_grainsAsEllipsoids, &GrainsAsEllipsoids::setOnlyOne);
 	connect(m_dlg, &G3PointDialog::transparencyChanged, m_grainsAsEllipsoids, &GrainsAsEllipsoids::setTransparency);
+	connect(m_dlg, &G3PointDialog::drawSurfaces, m_grainsAsEllipsoids, &GrainsAsEllipsoids::drawSurfaces);
+	connect(m_dlg, &G3PointDialog::drawLines, m_grainsAsEllipsoids, &GrainsAsEllipsoids::drawLines);
+	connect(m_dlg, &G3PointDialog::drawPoints, m_grainsAsEllipsoids, &GrainsAsEllipsoids::drawPoints);
+	connect(m_dlg, &G3PointDialog::glPointSize, m_grainsAsEllipsoids, &GrainsAsEllipsoids::setGLPointSize);
 
 	m_dlg->setOnlyOneMax(m_stacks.size());
 	m_dlg->emitSignals(); // force to send parameters to m_grainsAsEllipsoids
@@ -1518,7 +1522,6 @@ bool G3PointAction::computeNormalsWithOpen3D()
 	// compute the normals
 	pcd.EstimateNormals(open3d::geometry::KDTreeSearchParamKNN(m_kNN));
 
-	std::cout << "normals" << std::endl;
 	for (int i = 0; i < 10; i++)
 	{
 		std::cout << pcd.normals_[i].x() << " " << pcd.normals_[i].y() << " " << pcd.normals_[i].z() << std::endl;
@@ -1556,7 +1559,6 @@ bool G3PointAction::computeNormalsWithOpen3D()
 		m_cloud->setPointNormalIndex(j, theNormsCodes.getValue(j));
 	}
 
-	std::cout << "normals CloudCompare" << std::endl;
 	for (int i = 0; i < 10; i++)
 	{
 		std::cout << m_cloud->getNormal(i)->x << " " << m_cloud->getNormal(i)->y << " " << m_cloud->getNormal(i)->z << std::endl;

@@ -662,17 +662,25 @@ void GrainsAsEllipsoids::drawEllipsoid(CC_DRAW_CONTEXT& context, int idx)
 		m_program->setUniformValue("modelViewProjectionMatrix", projection * modelView);
 
 		// draw triangles
-		m_program->setUniformValue("drawLines", 0);
-		glFunc->glEnable(GL_POLYGON_OFFSET_FILL);
-		glFunc->glPolygonOffset(1.0, 1.0f); // move polygon backward
-		glFunc->glDrawElements(GL_TRIANGLES, (unsigned int)indices.size(), GL_UNSIGNED_INT, indices.data());
-		glFunc->glDisable(GL_POLYGON_OFFSET_FILL);
+		if (m_drawSurfaces)
+		{
+			m_program->setUniformValue("drawLines", 0);
+			m_program->setUniformValue("drawPoints", 0);
+			glFunc->glEnable(GL_POLYGON_OFFSET_FILL);
+			glFunc->glPolygonOffset(1.0, 1.0f); // move polygon backward
+			glFunc->glDrawElements(GL_TRIANGLES, (unsigned int) indices.size(), GL_UNSIGNED_INT, indices.data());
+			glFunc->glDisable(GL_POLYGON_OFFSET_FILL);
+		}
 
 		// draw lines
-		m_program->setUniformValue("drawLines", 1);
-		glFunc->glDisable(GL_LIGHTING);
-		glFunc->glDisable(GL_TEXTURE_2D);
-		glFunc->glDrawElements(GL_LINES, (unsigned int)lineIndices.size(), GL_UNSIGNED_INT, lineIndices.data());
+		if (m_drawLines)
+		{
+			m_program->setUniformValue("drawLines", 1);
+			m_program->setUniformValue("drawPoints", 0);
+			glFunc->glDisable(GL_LIGHTING);
+			glFunc->glDisable(GL_TEXTURE_2D);
+			glFunc->glDrawElements(GL_LINES, (unsigned int)lineIndices.size(), GL_UNSIGNED_INT, lineIndices.data());
+		}
 
 		glFunc->glPopMatrix();
 	}
@@ -727,6 +735,41 @@ bool GrainsAsEllipsoids::drawEllipsoids(CC_DRAW_CONTEXT& context)
 	else
 	{
 		drawEllipsoid(context, m_onlyOne);
+
+		// draw points
+		if (m_drawPoints)
+		{
+			// get matrices
+			glFunc->glGetFloatv(GL_PROJECTION_MATRIX, projection.data());
+			glFunc->glGetFloatv(GL_MODELVIEW_MATRIX, modelView.data());
+
+			m_program->setUniformValue("modelViewProjectionMatrix", projection * modelView);
+			m_program->setUniformValue("drawLines", 0);
+			m_program->setUniformValue("drawPoints", 1);
+			m_program->setUniformValue("materialAmbient", 1, 1, 1, 1.);
+
+			std::vector<int> stack = m_stacks[m_onlyOne];
+			std::vector<std::array<GLfloat, 3>> points(stack.size());
+			std::vector<int> indices;
+			for (int k = 0; k < stack.size(); k++)
+			{
+				const CCVector3* P = m_cloud->getPoint(stack[k]);
+				points[k] = {P->x, P->y, P->z};
+			}
+
+			// change the vertex positions to the points of the current grain
+			m_program->setAttributeArray("vertexPosition", static_cast<GLfloat*>(points[0].data()), 3);
+
+			m_program->setUniformValue("pointSize", m_glPointSize);
+
+			glFunc->glEnable(GL_VERTEX_PROGRAM_POINT_SIZE);
+			glFunc->glDisable(GL_LIGHTING);
+			glFunc->glDisable(GL_TEXTURE_2D);
+			glFunc->glDrawArrays(GL_POINTS, 0, stack.size());
+
+			// reset the vertex positions to the template sphere
+			m_program->setAttributeArray("vertexPosition", static_cast<GLfloat*>(vertices.data()), 3);
+		}
 	}
 
 	if (false) // Matlab fit of grain 351
@@ -763,14 +806,14 @@ bool GrainsAsEllipsoids::drawEllipsoids(CC_DRAW_CONTEXT& context)
 		m_program->setUniformValue("drawLines", 0);
 		glFunc->glEnable(GL_POLYGON_OFFSET_FILL);
 		glFunc->glPolygonOffset(1.0, 1.0f); // move polygon backward
-		glFunc->glDrawElements(GL_TRIANGLES, (unsigned int)indices.size(), GL_UNSIGNED_INT, indices.data());
+		glFunc->glDrawElements(GL_TRIANGLES, (unsigned int) indices.size(), GL_UNSIGNED_INT, indices.data());
 		glFunc->glDisable(GL_POLYGON_OFFSET_FILL);
 
 		// draw lines
 		m_program->setUniformValue("drawLines", 1);
 		glFunc->glDisable(GL_LIGHTING);
 		glFunc->glDisable(GL_TEXTURE_2D);
-		glFunc->glDrawElements(GL_LINES, (unsigned int)lineIndices.size(), GL_UNSIGNED_INT, lineIndices.data());
+		glFunc->glDrawElements(GL_LINES, (unsigned int) lineIndices.size(), GL_UNSIGNED_INT, lineIndices.data());
 
 		glFunc->glPopMatrix();
 	}
@@ -803,41 +846,11 @@ void GrainsAsEllipsoids::drawGrains(CC_DRAW_CONTEXT& context)
 	// set uniforms
 	m_program->setUniformValue("modelViewProjectionMatrix", projectionModelView);
 
-	if (false)
-	{
-		// get the coordinates of the local maxima
-		std::vector<CCVector3> semiAxisLengths(m_localMaximumIndexes.size(), CCVector3(1, 1, 1));
-		std::vector<CCVector3f> centers(m_localMaximumIndexes.size());
-
-		// initialize the vector containing the centers of the grains
-		for (int index = 0; index < m_localMaximumIndexes.size(); index++)
-		{
-			centers[index] = *m_cloud->getPoint(m_localMaximumIndexes[index]);
-		}
-
-		m_program->setAttributeArray("vertexIn", static_cast<GLfloat*>(vertices.data()), 3);
-		m_program->setAttributeArray("semiAxisLengths", static_cast<GLfloat*>(semiAxisLengths.front().u), 3);
-
-		m_program->enableAttributeArray("vertexIn"); // enable the vertex locations array
-		m_program->enableAttributeArray("semiAxisLengths"); // enable the semi-axis lenghts array
-
-		m_program->setUniformValue("center", centers[0].x, centers[0].y, centers[0].z);
-
-		glFunc->glEnable(GL_PROGRAM_POINT_SIZE);
-		setUniformValueColor(ccColor::yellow);
-		glFunc->glDrawElements(GL_TRIANGLES, (unsigned int)indices.size(), GL_UNSIGNED_INT, indices.data());
-
-		m_program->disableAttributeArray("vertexIn");
-		m_program->disableAttributeArray("semiAxesLengths");
-	}
-	else
-	{
-		QMatrix4x4 matrixNormal = modelView;
-		matrixNormal.setColumn(3, QVector4D(0,0,0,1));
-		m_program->setUniformValue("modelViewMatrix", modelView);
-		m_program->setUniformValue("normalMatrix", matrixNormal);
-		drawEllipsoids(context);
-	}
+	QMatrix4x4 matrixNormal = modelView;
+	matrixNormal.setColumn(3, QVector4D(0,0,0,1));
+	m_program->setUniformValue("modelViewMatrix", modelView);
+	m_program->setUniformValue("normalMatrix", matrixNormal);
+	drawEllipsoids(context);
 
 	m_program->release();
 
@@ -848,12 +861,3 @@ void GrainsAsEllipsoids::draw(CC_DRAW_CONTEXT& context)
 {
 	drawGrains(context);
 }
-
-void GrainsAsEllipsoids::showAll(bool state)
-{
-	m_showAll = state;
-	ccLog::Warning("[GrainsAsEllipsoids::showAll] changed " + QString::number(m_showAll));
-}
-
-
-

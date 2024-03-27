@@ -25,6 +25,12 @@ G3PointDialog::G3PointDialog(QString cloudName, QWidget *parent)
 
 	connect(this->ui->pushButtonFit, &QPushButton::clicked, this, &G3PointDialog::emitFit);
 	connect(this->ui->doubleSpinBoxTransparency, qOverload<double>(&QDoubleSpinBox::valueChanged), this, &G3PointDialog::emitTransparencyChanged);
+	connect(this->ui->checkBoxSurfaces, &QCheckBox::clicked, this, &G3PointDialog::emitDrawSurfaces);
+	connect(this->ui->checkBoxWireframes, &QCheckBox::clicked, this, &::G3PointDialog::emitDrawLines);
+	connect(this->ui->checkBoxPoints, &QCheckBox::clicked, this, &G3PointDialog::emitDrawPoints);
+	connect(this->ui->spinBoxGLPointSize, qOverload<int>(&QSpinBox::valueChanged), this, &::G3PointDialog::emitGLPointSizeChanged);
+
+	connect(this->ui->radioButtonOnlyOne, &QRadioButton::toggled, this, &G3PointDialog::enableDrawPointsForOnlyOneGrain);
 }
 
 G3PointDialog::~G3PointDialog()
@@ -85,10 +91,16 @@ void G3PointDialog::enableClean(bool state)
 void G3PointDialog::emitSignals()
 {
 	emit allClicked(this->ui->radioButtonAll->isChecked());
-	emit emitOnlyOneChanged(this->ui->spinBoxOnlyOne->value());
+	emit onlyOneChanged(this->ui->spinBoxOnlyOne->value());
 }
 
 void G3PointDialog::setOnlyOneMax(int max)
 {
 	this->ui->spinBoxOnlyOne->setMaximum(max);
+}
+
+void G3PointDialog::enableDrawPointsForOnlyOneGrain(bool state)
+{
+	this->ui->checkBoxPoints->setEnabled(state);
+	this->ui->spinBoxGLPointSize->setEnabled(state);
 }
