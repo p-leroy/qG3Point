@@ -116,7 +116,6 @@ void GrainsAsEllipsoids::initSphereVertices()
 			texCoords.push_back(t);
 		}
 	}
-	ccLog::Print("vertices.size() " + QString::number(vertices.size()));
 }
 
 void GrainsAsEllipsoids::initSphereIndexes()
@@ -162,27 +161,6 @@ void GrainsAsEllipsoids::initSphereIndexes()
 				lineIndices.push_back(k1 + 1);
 			}
 		}
-	}
-}
-
-void GrainsAsEllipsoids::buildInterleavedVertices()
-{
-	std::vector<float>().swap(interleavedVertices);
-
-	std::size_t i, j;
-	std::size_t count = vertices.size();
-	for(i = 0, j = 0; i < count; i += 3, j += 2)
-	{
-		interleavedVertices.push_back(vertices[i]);
-		interleavedVertices.push_back(vertices[i+1]);
-		interleavedVertices.push_back(vertices[i+2]);
-
-		interleavedVertices.push_back(normals[i]);
-		interleavedVertices.push_back(normals[i+1]);
-		interleavedVertices.push_back(normals[i+2]);
-
-		interleavedVertices.push_back(texCoords[j]);
-		interleavedVertices.push_back(texCoords[j+1]);
 	}
 }
 
@@ -534,6 +512,31 @@ bool GrainsAsEllipsoids::fitEllipsoidToGrain(const int grainIndex,
 	center = center / scale + Eigen::Array3f(means.cast<float>());
 	radii = radii / scale;
 
+	// re-order the radii
+	std::vector<float> sortedRadii{radii(0), radii(1), radii(2)};
+	std::sort(sortedRadii.begin(), sortedRadii.end());
+	Eigen::Array3f updatedRadii = {sortedRadii[0], sortedRadii[1], sortedRadii[2]}; // from the smallest to the largest
+	Eigen::Matrix3f updatedRotationMatrix;
+	for (int k = 0; k < 3; k++)
+	{
+		float radius = updatedRadii(k);
+		int col = 0;
+		for (int idx = 0; idx < 3; idx++)
+		{
+			if (radii[idx] == radius)
+			{
+				break;
+			}
+			col++;
+		}
+		updatedRotationMatrix(k, 0) = rotationMatrix(col, 0);
+		updatedRotationMatrix(k, 1) = rotationMatrix(col, 1);
+		updatedRotationMatrix(k, 2) = rotationMatrix(col, 2);
+	}
+
+	radii = updatedRadii;
+	rotationMatrix = updatedRotationMatrix;
+
 	ret = explicitToImplicit(center, radii, rotationMatrix, p);
 
 	return ret;
@@ -574,15 +577,6 @@ bool GrainsAsEllipsoids::initProgram(QOpenGLContext* context)
 			return false;
 		}
 
-		// create geometry shader
-		//		QString geometryShaderFile(m_shaderPath + "/DrawGrains.gs");
-		//		if (!m_program->addShaderFromSourceFile(QOpenGLShader::Geometry, geometryShaderFile))
-		//		{
-		//			error = m_program->log();
-		//			ccLog::Error(error);
-		//			return false;
-		//		}
-
 		// create fragment shader
 		QString fragmentShaderFile(m_shaderPath + "/DrawGrains.fs");
 		if (!m_program->addShaderFromSourceFile(QOpenGLShader::Fragment, fragmentShaderFile))
@@ -620,7 +614,6 @@ bool GrainsAsEllipsoids::initProgram(QOpenGLContext* context)
 		// initialize sphere
 		initSphereVertices();
 		initSphereIndexes();
-		buildInterleavedVertices();
 	}
 
 	return true;
@@ -666,9 +659,13 @@ void GrainsAsEllipsoids::drawEllipsoid(CC_DRAW_CONTEXT& context, int idx)
 		{
 			m_program->setUniformValue("drawLines", 0);
 			m_program->setUniformValue("drawPoints", 0);
+
 			glFunc->glEnable(GL_POLYGON_OFFSET_FILL);
+
 			glFunc->glPolygonOffset(1.0, 1.0f); // move polygon backward
+
 			glFunc->glDrawElements(GL_TRIANGLES, (unsigned int) indices.size(), GL_UNSIGNED_INT, indices.data());
+
 			glFunc->glDisable(GL_POLYGON_OFFSET_FILL);
 		}
 
@@ -677,8 +674,7 @@ void GrainsAsEllipsoids::drawEllipsoid(CC_DRAW_CONTEXT& context, int idx)
 		{
 			m_program->setUniformValue("drawLines", 1);
 			m_program->setUniformValue("drawPoints", 0);
-			glFunc->glDisable(GL_LIGHTING);
-			glFunc->glDisable(GL_TEXTURE_2D);
+
 			glFunc->glDrawElements(GL_LINES, (unsigned int)lineIndices.size(), GL_UNSIGNED_INT, lineIndices.data());
 		}
 
@@ -765,6 +761,7 @@ bool GrainsAsEllipsoids::drawEllipsoids(CC_DRAW_CONTEXT& context)
 			glFunc->glEnable(GL_VERTEX_PROGRAM_POINT_SIZE);
 			glFunc->glDisable(GL_LIGHTING);
 			glFunc->glDisable(GL_TEXTURE_2D);
+
 			glFunc->glDrawArrays(GL_POINTS, 0, stack.size());
 
 			// reset the vertex positions to the template sphere

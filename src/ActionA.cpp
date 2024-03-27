@@ -70,7 +70,10 @@ void G3PointAction::GetG3PointAction(ccPointCloud *cloud, ccMainAppInterface *ap
 	}
 	s_g3PointAction->showDlg();
 	s_g3PointAction->init();
+
+	// do actions immediately for debug
 	s_g3PointAction->segment();
+	s_g3PointAction->fit();
 }
 
 RGBAColorsTableType getRandomColors(int randomColorsNumber)
