@@ -26,7 +26,7 @@ GrainsAsEllipsoids::GrainsAsEllipsoids(ccPointCloud *cloud, ccMainAppInterface *
 	// fit all ellipsoids
 	std::cout << "[GrainsAsEllipsoids::GrainsAsEllipsoids] fit " << stacks.size() << " ellipsoids" << std::endl;
 
-	lockVisibility(false);
+//	lockVisibility(false);
 
 	m_ccBBoxAll.setValidity(false);
 	m_ccBBoxAll.clear();
@@ -912,7 +912,10 @@ void GrainsAsEllipsoids::showAll(bool state)
 
 void GrainsAsEllipsoids::draw(CC_DRAW_CONTEXT& context)
 {
-	drawGrains(context);
+	if (isVisible())
+	{
+		drawGrains(context);
+	}
 }
 
 ccBBox GrainsAsEllipsoids::getOwnBB(bool withGLFeatures)
