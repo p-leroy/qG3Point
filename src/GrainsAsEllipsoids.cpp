@@ -6,12 +6,11 @@
 #include <QOpenGLShaderProgram>
 
 #include <iostream>
-#include <random>
 
 // from GeometricTools/GTE
-#include <Mathematics/DistPointHyperellipsoid.h>
-#include <Mathematics/Vector2.h>
-#include <Mathematics/Vector3.h>
+// #include <Mathematics/DistPointHyperellipsoid.h>
+// #include <Mathematics/Vector2.h>
+// #include <Mathematics/Vector3.h>
 
 GrainsAsEllipsoids::GrainsAsEllipsoids(ccPointCloud *cloud, ccMainAppInterface *app, const std::vector<std::vector<int> >& stacks)
 	: m_cloud(cloud)
@@ -29,6 +28,9 @@ GrainsAsEllipsoids::GrainsAsEllipsoids(ccPointCloud *cloud, ccMainAppInterface *
 
 	lockVisibility(false);
 
+	m_ccBBoxAll.setValidity(false);
+	m_ccBBoxAll.clear();
+
 	for (int idx = 0; idx < m_stacks.size(); idx++)
 	{
 		if (!fitEllipsoidToGrain(idx, m_center[idx], m_radii[idx], m_rotationMatrix[idx]))
@@ -37,7 +39,17 @@ GrainsAsEllipsoids::GrainsAsEllipsoids(ccPointCloud *cloud, ccMainAppInterface *
 			ccLog::Warning("[GrainsAsEllipsoids::GrainsAsEllipsoids] fit not possible for grain " + QString::number(idx)
 						   + " of size " + QString::number(m_stacks[idx].size()));
 		}
+		else // update the bounding box
+		{
+			float maxRadius = m_radii[idx].maxCoeff();
+			CCVector3 center(m_center[idx](0), m_center[idx](1), m_center[idx](2));
+			m_ccBBoxAll.add(CCVector3(center.x + maxRadius, center.y + maxRadius, center.z + maxRadius));
+			m_ccBBoxAll.add(CCVector3(center.x - maxRadius, center.y - maxRadius, center.z - maxRadius));
+		}
 	}
+
+	m_ccBBoxAll.setValidity(true);
+	m_cloud->computeOctree();
 }
 
 void GrainsAsEllipsoids::setShaderPath(const QString& path)
@@ -168,63 +180,85 @@ void GrainsAsEllipsoids::initSphereIndexes()
 
 double GrainsAsEllipsoids::ellipsoidDistance(const Eigen::ArrayXd& p, int idx)
 {
-	// Compute the mean distance between the points of the grain and the ellipsoid
+	// // Compute the mean distance between the points of the grain and the ellipsoid
 
-	// GTE Geometric Tools Engine
+	// // GTE Geometric Tools Engine
 
-	// center
-	gte::Vector3<double> center = {m_center[idx](0), m_center[idx](1), m_center[idx](2)};
+	// // center
+	// gte::Vector3<double> center = {m_center[idx](0), m_center[idx](1), m_center[idx](2)};
 
-	// axis
-	std::array<gte::Vector3<double>, 3> axis;
-	axis[0] = {m_rotationMatrix[idx](0, 0), m_rotationMatrix[idx](1, 0), m_rotationMatrix[idx](2, 0)};
-	axis[1] = {m_rotationMatrix[idx](0, 1), m_rotationMatrix[idx](1, 1), m_rotationMatrix[idx](2, 1)};
-	axis[2] = {m_rotationMatrix[idx](0, 2), m_rotationMatrix[idx](1, 2), m_rotationMatrix[idx](2, 2)};
+	// // axis
+	// std::array<gte::Vector3<double>, 3> axis;
+	// axis[0] = {m_rotationMatrix[idx](0, 0), m_rotationMatrix[idx](1, 0), m_rotationMatrix[idx](2, 0)};
+	// axis[1] = {m_rotationMatrix[idx](0, 1), m_rotationMatrix[idx](1, 1), m_rotationMatrix[idx](2, 1)};
+	// axis[2] = {m_rotationMatrix[idx](0, 2), m_rotationMatrix[idx](1, 2), m_rotationMatrix[idx](2, 2)};
 
-	// extent
-	gte::Vector3<double> extent = {m_radii[idx](0), m_radii[idx](1), m_radii[idx](2)};
+	// // extent
+	// gte::Vector3<double> extent = {m_radii[idx](0), m_radii[idx](1), m_radii[idx](2)};
 
-	// create the ellipsoid
-	gte::Ellipsoid3<double> ellipsoid(center, axis, extent);
+	// // create the ellipsoid
+	// gte::Ellipsoid3<double> ellipsoid(center, axis, extent);
 
-	gte::DCPQuery<double, gte::Vector3<double>, gte::Ellipsoid3<double>> query;
+	// gte::DCPQuery<double, gte::Vector3<double>, gte::Ellipsoid3<double>> query;
 
-	std::vector<int> stack = m_stacks[idx];
-	double sum_a = 0; // distances with respect to the ellipsoid
-	double sum_b = 0; // distances with respect to the mean
+	// std::vector<int> stack = m_stacks[idx];
+	// double sum_a = 0; // distances with respect to the ellipsoid
+	// double sum_b = 0; // distances with respect to the mean
 
-	//compute gravity center
-	size_t count = m_cloud->size();
-	CCVector3 mean(0, 0, 0);
-	for (int index : m_stacks[idx])
+	// //compute gravity center
+	// size_t count = m_cloud->size();
+	// CCVector3 mean(0, 0, 0);
+	// for (int index : m_stacks[idx])
+	// {
+	// 	const CCVector3* P = m_cloud->getPoint(index);
+	// 	mean.x += P->x;
+	// 	mean.y += P->y;
+	// 	mean.z += P->z;
+	// }
+	// mean.x = mean.x / count;
+	// mean.y = mean.y / count;
+	// mean.z = mean.z / count;
+
+	// for (int index : stack)
+	// {
+	// 	const CCVector3 *P = m_cloud->getPoint(index);
+	// 	gte::Vector3<double> P_gte = {P->x, P->y, P->z};
+	// 	auto result = query(P_gte, ellipsoid);
+	// 	sum_a = sum_a + pow(result.distance, 2);
+
+	// 	CCVector3 P_minus_min = *P - CCVector3(mean.x, mean.y, mean.z);
+	// 	sum_b = sum_b + P_minus_min.norm2d();
+	// }
+
+	// double r2 = 1 - sum_a / sum_b;
+
+	// // in Matlab
+	// // d = (x-xp).^2 + (y-yp).^2 + (z-zp).^2;
+	// // r2 = 1 - sum((x-xp).^2 + (y-yp).^2 + (z-zp).^2)./sum((x-mean(x)).^2 + (y-mean(y)).^2 + (z-mean(z)).^2);
+
+	// return r2;
+	return 0.;
+}
+
+void GrainsAsEllipsoids::updateBBoxOnlyOne(int index)
+{
+	m_ccBBoxOnlyOne.setValidity(false);
+	m_ccBBoxOnlyOne.clear();
+	if (index < m_stacks.size())
 	{
-		const CCVector3* P = m_cloud->getPoint(index);
-		mean.x += P->x;
-		mean.y += P->y;
-		mean.z += P->z;
+		if (m_fitNotOK.count(index) == 0)
+		{
+			float maxRadius = m_radii[index].maxCoeff();
+			CCVector3 center(m_center[index](0), m_center[index](1), m_center[index](2));
+			m_ccBBoxOnlyOne.add(CCVector3(center.x + maxRadius, center.y + maxRadius, center.z + maxRadius));
+			m_ccBBoxOnlyOne.add(CCVector3(center.x - maxRadius, center.y - maxRadius, center.z - maxRadius));
+			m_ccBBoxOnlyOne.setValidity(true);
+		}
 	}
-	mean.x = mean.x / count;
-	mean.y = mean.y / count;
-	mean.z = mean.z / count;
-
-	for (int index : stack)
+	else
 	{
-		const CCVector3 *P = m_cloud->getPoint(index);
-		gte::Vector3<double> P_gte = {P->x, P->y, P->z};
-		auto result = query(P_gte, ellipsoid);
-		sum_a = sum_a + pow(result.distance, 2);
-
-		CCVector3 P_minus_min = *P - CCVector3(mean.x, mean.y, mean.z);
-		sum_b = sum_b + P_minus_min.norm2d();
+		ccLog::Error("[GrainsAsEllipsoids::updateBBox] asking for the bounding of index " + QString::number(index) + " out of range");
 	}
-
-	double r2 = 1 - sum_a / sum_b;
-
-	// in Matlab
-	// d = (x-xp).^2 + (y-yp).^2 + (z-zp).^2;
-	// r2 = 1 - sum((x-xp).^2 + (y-yp).^2 + (z-zp).^2)./sum((x-mean(x)).^2 + (y-mean(y)).^2 + (z-mean(z)).^2);
-
-	return r2;
 }
 
 bool GrainsAsEllipsoids::explicitToImplicit(const Eigen::Array3f& center,
@@ -333,10 +367,12 @@ bool GrainsAsEllipsoids::implicitToExplicit(const Eigen::ArrayXd& parameters,
 	Eigen::MatrixXd s(4, 4);
 	s = t * q * t.transpose();
 
-//	std::cout << "p " << std::endl << p << std::endl;
-//	std::cout << "q " << std::endl << q << std::endl;
-//	std::cout << "t " << std::endl << t << std::endl;
-//	std::cout << "s " << std::endl << s << std::endl;
+	// check for positive definiteness
+	Eigen::LLT<Eigen::MatrixXd> lltOfA((-s(3, 3) * s.block(0, 0, 3, 3).array()));
+	if (lltOfA.info() != Eigen::Success)
+	{
+		return false;
+	}
 
 	Eigen::EigenSolver<Eigen::MatrixXd> eigensolver(s.block(0, 0, 3, 3));
 	if (eigensolver.info() != Eigen::Success)
@@ -854,7 +890,34 @@ void GrainsAsEllipsoids::drawGrains(CC_DRAW_CONTEXT& context)
 	m_app->redrawAll();
 }
 
+void GrainsAsEllipsoids::setOnlyOne(int i)
+{
+	m_onlyOne = i;
+	updateBBoxOnlyOne(i);
+}
+
+void GrainsAsEllipsoids::showOnlyOne(bool state)
+{
+	m_showAll =!state;
+	m_ccBBox = m_ccBBoxOnlyOne;
+	m_app->updateUI();
+}
+
+void GrainsAsEllipsoids::showAll(bool state)
+{
+	m_showAll = state;
+	m_ccBBox = m_ccBBoxAll;
+	m_app->updateUI();
+}
+
 void GrainsAsEllipsoids::draw(CC_DRAW_CONTEXT& context)
 {
 	drawGrains(context);
 }
+
+ccBBox GrainsAsEllipsoids::getOwnBB(bool withGLFeatures)
+{
+	return m_ccBBox;
+}
+
+

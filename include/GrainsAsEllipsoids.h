@@ -9,6 +9,7 @@
 
 #include <ccGLWindowInterface.h>
 #include <ccHObject.h>
+#include <ccCustomObject.h>
 #include <ccMainAppInterface.h>
 #include <ccColorTypes.h>
 
@@ -16,7 +17,7 @@
 
 class ccPointCloud;
 
-class GrainsAsEllipsoids : public QObject, public ccHObject
+class GrainsAsEllipsoids : public QObject, public ccCustomHObject
 {
 	Q_OBJECT
 
@@ -55,6 +56,8 @@ public:
 
 	double ellipsoidDistance(const Eigen::ArrayXd& p, int idx);
 
+	void updateBBoxOnlyOne(int index);
+
 	bool explicitToImplicit(const Eigen::Array3f& center, const Eigen::Array3f& radii, const Eigen::Matrix3f &rotationMatrix, Eigen::ArrayXd& parameters);
 
 	bool implicitToExplicit(const Eigen::ArrayXd& parameters, Eigen::Array3f& center, Eigen::Array3f& radii, Eigen::Matrix3f& rotationMatrix);
@@ -81,14 +84,11 @@ public:
 	//! Draw grains as ellipsoids
 	void drawGrains(CC_DRAW_CONTEXT &context);
 
-	// from ccHObject
-	void draw(CC_DRAW_CONTEXT& context);
+	void setOnlyOne(int i);
 
-	void setOnlyOne(int i){m_onlyOne = i;}
+	void showOnlyOne(bool state);
 
-	void showOnlyOne(bool state){m_showAll =!state;}
-
-	void showAll(bool state){m_showAll = state;}
+	void showAll(bool state);
 
 	void setTransparency(double transparency){m_transparency = transparency;}
 
@@ -97,11 +97,20 @@ public:
 	void drawPoints(bool state){m_drawPoints = state;}
 	void setGLPointSize(int size){m_glPointSize = size;}
 
+	//Inherited from ccHObject
+
+	void draw(CC_DRAW_CONTEXT& context) override;
+
+	ccBBox getOwnBB(bool withGLFeatures = false) override;
+
 	ccPointCloud* m_cloud;
 	ccMainAppInterface* m_app;
 	Eigen::ArrayXi m_localMaximumIndexes;
 	std::vector<std::vector<int>> m_stacks;
 	std::vector<CCVector3f> m_grainColors;
+	ccBBox m_ccBBoxOnlyOne;
+	ccBBox m_ccBBoxAll;
+	ccBBox m_ccBBox;
 
 	std::vector<CCVector3f> m_ellipsoidInstance;
 	Eigen::ArrayX3f ellipsoidInstance;

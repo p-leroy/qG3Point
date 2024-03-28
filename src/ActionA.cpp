@@ -982,7 +982,10 @@ void G3PointAction::fit()
 	m_dlg->setOnlyOneMax(m_stacks.size());
 	m_dlg->emitSignals(); // force to send parameters to m_grainsAsEllipsoids
 
+	m_cloud->getParent()->addChild(m_grainsAsEllipsoids);
 	m_app->addToDB(m_grainsAsEllipsoids);
+
+	m_app->updateUI();
 }
 
 bool G3PointAction::cleanLabels()
