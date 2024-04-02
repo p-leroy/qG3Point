@@ -33,6 +33,8 @@ public:
 
 	void setGrainColorsTable(const RGBAColorsTableType& colorTable);
 
+	void exportResultsAsCloud();
+
 	// INIT SPHERE
 
 	void initSphereVertices();

@@ -26,7 +26,7 @@ GrainsAsEllipsoids::GrainsAsEllipsoids(ccPointCloud *cloud, ccMainAppInterface *
 	// fit all ellipsoids
 	std::cout << "[GrainsAsEllipsoids::GrainsAsEllipsoids] fit " << stacks.size() << " ellipsoids" << std::endl;
 
-//	lockVisibility(false);
+	lockVisibility(false);
 
 	m_ccBBoxAll.setValidity(false);
 	m_ccBBoxAll.clear();
@@ -73,6 +73,62 @@ void GrainsAsEllipsoids::setGrainColorsTable(const RGBAColorsTableType& colorTab
 									  static_cast<float>(color.g) / ccColor::MAX,
 									  static_cast<float>(color.b) / ccColor::MAX);
 	}
+}
+
+void GrainsAsEllipsoids::exportResultsAsCloud()
+{
+	// create cloud
+	// QString cloudName = m_cloud->getName() + "_g3point";
+	QString cloudName = "g3point_results";
+	ccPointCloud *cloud = new ccPointCloud(cloudName);
+
+	for (int idx = 0; idx < m_center.size(); idx++)
+	{
+		// get the rotation matrix of the grain
+		Eigen::Matrix3f rotation(m_rotationMatrix[idx].transpose());
+		// get the center of the grain
+		Eigen::Vector3f center {m_center[idx].x(), m_center[idx].y(), m_center[idx].z()};
+		// get the axis of the grain
+		Eigen::Vector3f uz {0, 0, 1};
+		Eigen::Vector3f point = center + rotation * uz;
+		CCVector3 ccPoint(point(0), point(1), point(2));
+		cloud->addPoint(ccPoint);
+	}
+
+	//allocate colors if necessary
+	if (cloud->resizeTheRGBTable())
+	{
+		for (int index = 0; index < cloud->size(); index++)
+		{
+			ccColor::Rgb color(m_grainColors[index].x * ccColor::MAX,
+							   m_grainColors[index].y * ccColor::MAX,
+							   m_grainColors[index].z * ccColor::MAX);
+			cloud->setPointColor(index, color);
+		}
+	}
+
+	cloud->showColors(true);
+	cloud->setPointSize(5);
+
+	ccHObject* parent = m_cloud->getParent();
+	int nbChildren = parent->getChildrenNumber();
+	std::vector<ccHObject *> toDelete;
+	for (int k = 0; k < nbChildren; k++)
+	{
+		auto child = parent->getChild(k);
+
+		if (child->getName() == cloudName)
+		{
+			toDelete.push_back(child);
+		}
+	}
+	for (auto& child : toDelete)
+	{
+		m_app->removeFromDB(child, true);
+	}
+
+	parent->addChild(cloud, ccHObject::DP_PARENT_OF_OTHER, 0);
+	m_app->addToDB(cloud);
 }
 
 // INIT ORIGINAL SPHERE
@@ -912,10 +968,10 @@ void GrainsAsEllipsoids::showAll(bool state)
 
 void GrainsAsEllipsoids::draw(CC_DRAW_CONTEXT& context)
 {
-	if (isVisible())
-	{
+	// if (isVisible())
+	// {
 		drawGrains(context);
-	}
+	// }
 }
 
 ccBBox GrainsAsEllipsoids::getOwnBB(bool withGLFeatures)
