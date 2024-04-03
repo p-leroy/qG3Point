@@ -24,7 +24,7 @@ class GrainsAsEllipsoids : public QObject, public ccCustomHObject
 public:
 	typedef Eigen::Array<bool, Eigen::Dynamic, Eigen::Dynamic> Xb;
 
-	GrainsAsEllipsoids(ccPointCloud *cloud, ccMainAppInterface* app, const std::vector<std::vector<int> >& stacks);
+	GrainsAsEllipsoids(ccPointCloud *cloud, ccMainAppInterface* app, const std::vector<std::vector<int> >& stacks, const RGBAColorsTableType& colors);
 
 	//! Set the path for shaders
 	void setShaderPath(const QString &path);

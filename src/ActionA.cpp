@@ -963,10 +963,9 @@ int G3PointAction::cluster()
 void G3PointAction::fit()
 {
 	// plot display grains as ellipsoids
-	m_grainsAsEllipsoids = new GrainsAsEllipsoids(m_cloud, m_app, m_stacks);
-	m_grainsAsEllipsoids->setLocalMaximumIndexes(m_localMaximumIndexes);
 	m_grainColors.reset(new RGBAColorsTableType(getRandomColors(m_localMaximumIndexes.size())));
-	m_grainsAsEllipsoids->setGrainColorsTable(*m_grainColors);
+	m_grainsAsEllipsoids = new GrainsAsEllipsoids(m_cloud, m_app, m_stacks, *m_grainColors);
+	m_grainsAsEllipsoids->setLocalMaximumIndexes(m_localMaximumIndexes);
 	m_grainsAsEllipsoids->setName("grains as ellipsoids");
 
 	// add connections with the dialog

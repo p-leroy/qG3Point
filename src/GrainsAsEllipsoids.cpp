@@ -12,12 +12,13 @@
 // #include <Mathematics/Vector2.h>
 // #include <Mathematics/Vector3.h>
 
-GrainsAsEllipsoids::GrainsAsEllipsoids(ccPointCloud *cloud, ccMainAppInterface *app, const std::vector<std::vector<int> >& stacks)
+GrainsAsEllipsoids::GrainsAsEllipsoids(ccPointCloud *cloud, ccMainAppInterface *app, const std::vector<std::vector<int> >& stacks, const RGBAColorsTableType& colors)
 	: m_cloud(cloud)
 	, m_app(app)
 	, m_stacks(stacks)
 {
 	setShaderPath("C:/dev/CloudCompare/plugins/private/qG3POINT/shaders");
+	setGrainColorsTable(colors);
 
 	m_center.resize(m_stacks.size());
 	m_radii.resize(m_stacks.size());
@@ -27,6 +28,7 @@ GrainsAsEllipsoids::GrainsAsEllipsoids(ccPointCloud *cloud, ccMainAppInterface *
 	std::cout << "[GrainsAsEllipsoids::GrainsAsEllipsoids] fit " << stacks.size() << " ellipsoids" << std::endl;
 
 	lockVisibility(false);
+	setVisible(true);
 
 	m_ccBBoxAll.setValidity(false);
 	m_ccBBoxAll.clear();
@@ -49,7 +51,8 @@ GrainsAsEllipsoids::GrainsAsEllipsoids(ccPointCloud *cloud, ccMainAppInterface *
 	}
 
 	m_ccBBoxAll.setValidity(true);
-	m_cloud->computeOctree();
+
+	exportResultsAsCloud();
 }
 
 void GrainsAsEllipsoids::setShaderPath(const QString& path)
@@ -968,10 +971,10 @@ void GrainsAsEllipsoids::showAll(bool state)
 
 void GrainsAsEllipsoids::draw(CC_DRAW_CONTEXT& context)
 {
-	// if (isVisible())
-	// {
+	 if (isVisible() && isEnabled())
+	 {
 		drawGrains(context);
-	// }
+	 }
 }
 
 ccBBox GrainsAsEllipsoids::getOwnBB(bool withGLFeatures)
