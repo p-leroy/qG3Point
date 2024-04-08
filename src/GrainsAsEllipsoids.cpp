@@ -78,7 +78,7 @@ void GrainsAsEllipsoids::setGrainColorsTable(const RGBAColorsTableType& colorTab
 	}
 }
 
-void GrainsAsEllipsoids::exportResultsAsCloud()
+bool GrainsAsEllipsoids::exportResultsAsCloud()
 {
 	// create cloud
 	// QString cloudName = m_cloud->getName() + "_g3point";
@@ -87,13 +87,8 @@ void GrainsAsEllipsoids::exportResultsAsCloud()
 
 	for (int idx = 0; idx < m_center.size(); idx++)
 	{
-		// get the rotation matrix of the grain
-		Eigen::Matrix3f rotation(m_rotationMatrix[idx].transpose());
-		// get the center of the grain
 		Eigen::Vector3f center {m_center[idx].x(), m_center[idx].y(), m_center[idx].z()};
-		// get the axis of the grain
-		Eigen::Vector3f uz {0, 0, 1};
-		Eigen::Vector3f point = center + rotation * uz;
+		Eigen::Vector3f point = center;
 		CCVector3 ccPoint(point(0), point(1), point(2));
 		cloud->addPoint(ccPoint);
 	}
@@ -103,15 +98,104 @@ void GrainsAsEllipsoids::exportResultsAsCloud()
 	{
 		for (int index = 0; index < cloud->size(); index++)
 		{
-			ccColor::Rgb color(m_grainColors[index].x * ccColor::MAX,
-							   m_grainColors[index].y * ccColor::MAX,
-							   m_grainColors[index].z * ccColor::MAX);
+			ccColor::Rgb color(m_grainColors[index].x * ccColor::MAX * 0.8,
+							   m_grainColors[index].y * ccColor::MAX * 0.8,
+							   m_grainColors[index].z * ccColor::MAX * 0.8);
 			cloud->setPointColor(index, color);
 		}
 	}
 
+	int sfIdx;
+	CCCoreLib::ScalarField* sf;
+
+	// EXPORT g3point_index
+	sfIdx = cloud->addScalarField("g3point_index");
+	if (sfIdx == -1)
+	{
+		ccLog::Error("[GrainsAsEllipsoids::exportResultsAsCloud] impossible to allocate g3point_index scalar field");
+		return false;
+	}
+	sf = cloud->getScalarField(sfIdx);
+	for (int index = 0; index < cloud->size(); index++)
+	{
+		sf->setValue(index, index);
+	}
+	sf->computeMinAndMax();
+
+	// <EXPORT RADII>
+	int sfIdxRadiusX = cloud->addScalarField("g3point_radius_x");
+	int sfIdxRadiusY = cloud->addScalarField("g3point_radius_y");
+	int sfIdxRadiusZ = cloud->addScalarField("g3point_radius_z");
+	if (sfIdxRadiusX == -1 || sfIdxRadiusY == -1 || sfIdxRadiusZ == -1)
+	{
+		ccLog::Error("[GrainsAsEllipsoids::exportResultsAsCloud] impossible to allocate scalar fields to export the radii");
+		return false;
+	}
+	CCCoreLib::ScalarField* sfRadiusX = cloud->getScalarField(sfIdxRadiusX);
+	CCCoreLib::ScalarField* sfRadiusY = cloud->getScalarField(sfIdxRadiusY);
+	CCCoreLib::ScalarField* sfRadiusZ = cloud->getScalarField(sfIdxRadiusZ);
+	for (int index = 0; index < cloud->size(); index++)
+	{
+		sfRadiusX->setValue(index, m_radii[index].x());
+		sfRadiusY->setValue(index, m_radii[index].y());
+		sfRadiusZ->setValue(index, m_radii[index].z());
+	}
+	sfRadiusX->computeMinAndMax();
+	sfRadiusY->computeMinAndMax();
+	sfRadiusZ->computeMinAndMax();
+	// </EXPORT RADII>
+
+	// <EXPORT ROTATION>
+	int sfIdxR00 = cloud->addScalarField("g3point_r00");
+	int sfIdxR01 = cloud->addScalarField("g3point_r01");
+	int sfIdxR02 = cloud->addScalarField("g3point_r02");
+	int sfIdxR10 = cloud->addScalarField("g3point_r10");
+	int sfIdxR11 = cloud->addScalarField("g3point_r11");
+	int sfIdxR21 = cloud->addScalarField("g3point_r12");
+	int sfIdxR20 = cloud->addScalarField("g3point_r20");
+	int sfIdxR12 = cloud->addScalarField("g3point_r21");
+	int sfIdxR22 = cloud->addScalarField("g3point_r22");
+	if (sfIdxR00 == -1 || sfIdxR01 == -1 || sfIdxR02 == -1
+		|| sfIdxR10 == -1 || sfIdxR11 == -1 || sfIdxR12 == -1
+		|| sfIdxR20 == -1 || sfIdxR21 == -1 || sfIdxR22 == -1)
+	{
+		ccLog::Error("[GrainsAsEllipsoids::exportResultsAsCloud] impossible to allocate scalar fields to export the rotation");
+		return false;
+	}
+	CCCoreLib::ScalarField* sfR00 = cloud->getScalarField(sfIdxR00);
+	CCCoreLib::ScalarField* sfR01 = cloud->getScalarField(sfIdxR01);
+	CCCoreLib::ScalarField* sfR02 = cloud->getScalarField(sfIdxR02);
+	CCCoreLib::ScalarField* sfR10 = cloud->getScalarField(sfIdxR10);
+	CCCoreLib::ScalarField* sfR11 = cloud->getScalarField(sfIdxR11);
+	CCCoreLib::ScalarField* sfR12 = cloud->getScalarField(sfIdxR12);
+	CCCoreLib::ScalarField* sfR20 = cloud->getScalarField(sfIdxR20);
+	CCCoreLib::ScalarField* sfR21 = cloud->getScalarField(sfIdxR21);
+	CCCoreLib::ScalarField* sfR22 = cloud->getScalarField(sfIdxR22);
+	for (unsigned int index = 0; index < cloud->size(); index++)
+	{
+		sfR00->setValue(index, m_rotationMatrix[index](0, 0));
+		sfR01->setValue(index, m_rotationMatrix[index](0, 1));
+		sfR02->setValue(index, m_rotationMatrix[index](0, 2));
+		sfR10->setValue(index, m_rotationMatrix[index](1, 0));
+		sfR11->setValue(index, m_rotationMatrix[index](1, 1));
+		sfR12->setValue(index, m_rotationMatrix[index](1, 2));
+		sfR20->setValue(index, m_rotationMatrix[index](2, 0));
+		sfR21->setValue(index, m_rotationMatrix[index](2, 1));
+		sfR22->setValue(index, m_rotationMatrix[index](2, 2));
+	}
+	sfR00->computeMinAndMax();
+	sfR01->computeMinAndMax();
+	sfR02->computeMinAndMax();
+	sfR10->computeMinAndMax();
+	sfR11->computeMinAndMax();
+	sfR12->computeMinAndMax();
+	sfR20->computeMinAndMax();
+	sfR21->computeMinAndMax();
+	sfR22->computeMinAndMax();
+	// </EXPORT ROTATION>
+
 	cloud->showColors(true);
-	cloud->setPointSize(5);
+	cloud->setPointSize(9);
 
 	ccHObject* parent = m_cloud->getParent();
 	int nbChildren = parent->getChildrenNumber();
@@ -132,6 +216,8 @@ void GrainsAsEllipsoids::exportResultsAsCloud()
 
 	parent->addChild(cloud, ccHObject::DP_PARENT_OF_OTHER, 0);
 	m_app->addToDB(cloud);
+
+	return true;
 }
 
 // INIT ORIGINAL SPHERE

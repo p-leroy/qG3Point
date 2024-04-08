@@ -33,7 +33,7 @@ public:
 
 	void setGrainColorsTable(const RGBAColorsTableType& colorTable);
 
-	void exportResultsAsCloud();
+	bool exportResultsAsCloud();
 
 	// INIT SPHERE
 
