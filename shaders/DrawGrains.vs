@@ -24,13 +24,11 @@ void main()
 		gl_PointSize = pointSize;
 		esVertex = vec3(modelViewMatrix * vec4(vertexPosition, 1.0));
 		esNormal = vec3(normalMatrix * vec4(0, 0, 1, 1.0));
-		//texCoord0 = vec2(0, 0);
 	}
 	else
 	{
 		esVertex = vec3(modelViewMatrix * vec4(vertexPosition, 1.0));
 		esNormal = vec3(normalMatrix * vec4(vertexNormal, 1.0));
-		//texCoord0 = vertexTexCoord;
 	}
 	
 	gl_Position = modelViewProjectionMatrix * vec4(vertexPosition, 1.0);

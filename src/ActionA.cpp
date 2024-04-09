@@ -72,8 +72,8 @@ void G3PointAction::GetG3PointAction(ccPointCloud *cloud, ccMainAppInterface *ap
 	s_g3PointAction->init();
 
 	// do actions immediately for debug
-	// s_g3PointAction->segment();
-	// s_g3PointAction->fit();
+	s_g3PointAction->segment();
+	s_g3PointAction->fit();
 }
 
 RGBAColorsTableType getRandomColors(int randomColorsNumber)
@@ -983,6 +983,7 @@ void G3PointAction::fit()
 	m_dlg->emitSignals(); // force to send parameters to m_grainsAsEllipsoids
 
 	m_cloud->getParent()->addChild(m_grainsAsEllipsoids);
+	m_app->addToDB(m_cloud);
 
 	m_app->updateUI();
 }

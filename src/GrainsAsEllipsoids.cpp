@@ -821,6 +821,7 @@ void GrainsAsEllipsoids::drawEllipsoid(CC_DRAW_CONTEXT& context, int idx)
 		glFunc->glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		glFunc->glEnable(GL_BLEND);
 		m_program->setUniformValue("materialAmbient", color.x, color.y, color.z, 1.);
+		m_program->setUniformValue("materialDiffuse", color.x, color.y, color.z, 1.);
 
 		// prepare translation, rotation and scaling
 		glFunc->glPushMatrix(); // save the current matrix
@@ -871,23 +872,18 @@ bool GrainsAsEllipsoids::drawEllipsoids(CC_DRAW_CONTEXT& context)
 	CCVector3f color;
 
 	// set uniforms
-	QVector4D lightPosition(0, 0, 1, 0);
-	QVector4D lightAmbient(0.3f, 0.3f, 0.3f, 1); // grey
-	QVector4D lightDiffuse(0.7f, 0.7f, 0.7f, 1); // light grey
-	QVector4D lightSpecular(1.0f, 1.0f, 1.0f, 1); // RGB white
-	//	QVector4D materialAmbient(0.5f, 0.5f, 0.5f, 1);
+	QVector4D lightPosition(2 * m_ccBBoxAll.maxCorner().x, 2 * m_ccBBoxAll.maxCorner().y, 10 * m_ccBBoxAll.maxCorner().z, 0);
+	QVector4D lightAmbient(0.8f, 0.8f, 0.8f, 1); // grey
+	QVector4D lightDiffuse(0.8f, 0.8f, 0.8f, 1); // light grey
+	QVector4D lightSpecular(1.0f, 1.0f, 1.0f, 1); // white
 	QVector4D materialDiffuse(0.7f, 0.7f, 0.7f, m_transparency);
 	QVector4D materialSpecular(0.4f, 0.4f, 0.4f, 1);
-	QVector4D materialAmbient(color.x, color.y, color.z, 1);
-	//	QVector4D materialDiffuse(color.r / ccColor::MAX, color.g / ccColor::MAX, color.b / ccColor::MAX, 1);
-	//	QVector4D materialSpecular(color.r / ccColor::MAX, color.g / ccColor::MAX, color.b / ccColor::MAX, 1);
 	float materialShininess  = 16;
 
 	m_program->setUniformValue("lightPosition", lightPosition);
 	m_program->setUniformValue("lightAmbient", lightAmbient);
 	m_program->setUniformValue("lightDiffuse", lightDiffuse);
 	m_program->setUniformValue("lightSpecular", lightSpecular);
-	m_program->setUniformValue("materialDiffuse", materialDiffuse);
 	m_program->setUniformValue("materialSpecular", materialSpecular);
 	m_program->setUniformValue("materialShininess", materialShininess);
 
@@ -1059,7 +1055,8 @@ void GrainsAsEllipsoids::draw(CC_DRAW_CONTEXT& context)
 {
 	 if (isVisible() && isEnabled())
 	 {
-		drawGrains(context);
+		if (MACRO_Draw3D(context))
+			drawGrains(context);
 	 }
 }
 
