@@ -87,6 +87,10 @@ bool GrainsAsEllipsoids::exportResultsAsCloud()
 
 	for (int idx = 0; idx < m_center.size(); idx++)
 	{
+		if (m_fitNotOK.count(idx))
+		{
+			continue;
+		}
 		Eigen::Vector3f center {m_center[idx].x(), m_center[idx].y(), m_center[idx].z()};
 		Eigen::Vector3f point = center;
 		CCVector3 ccPoint(point(0), point(1), point(2));
@@ -118,6 +122,10 @@ bool GrainsAsEllipsoids::exportResultsAsCloud()
 	sf = cloud->getScalarField(sfIdx);
 	for (int index = 0; index < cloud->size(); index++)
 	{
+		if (m_fitNotOK.count(index))
+		{
+			continue;
+		}
 		sf->setValue(index, index);
 	}
 	sf->computeMinAndMax();
@@ -136,6 +144,10 @@ bool GrainsAsEllipsoids::exportResultsAsCloud()
 	CCCoreLib::ScalarField* sfRadiusZ = cloud->getScalarField(sfIdxRadiusZ);
 	for (int index = 0; index < cloud->size(); index++)
 	{
+		if (m_fitNotOK.count(index))
+		{
+			continue;
+		}
 		sfRadiusX->setValue(index, m_radii[index].x());
 		sfRadiusY->setValue(index, m_radii[index].y());
 		sfRadiusZ->setValue(index, m_radii[index].z());
@@ -173,6 +185,10 @@ bool GrainsAsEllipsoids::exportResultsAsCloud()
 	CCCoreLib::ScalarField* sfR22 = cloud->getScalarField(sfIdxR22);
 	for (unsigned int index = 0; index < cloud->size(); index++)
 	{
+		if (m_fitNotOK.count(index))
+		{
+			continue;
+		}
 		sfR00->setValue(index, m_rotationMatrix[index](0, 0));
 		sfR01->setValue(index, m_rotationMatrix[index](0, 1));
 		sfR02->setValue(index, m_rotationMatrix[index](0, 2));
@@ -197,24 +213,7 @@ bool GrainsAsEllipsoids::exportResultsAsCloud()
 	cloud->showColors(true);
 	cloud->setPointSize(9);
 
-	ccHObject* parent = m_cloud->getParent();
-	int nbChildren = parent->getChildrenNumber();
-	std::vector<ccHObject *> toDelete;
-	for (int k = 0; k < nbChildren; k++)
-	{
-		auto child = parent->getChild(k);
-
-		if (child->getName() == cloudName)
-		{
-			toDelete.push_back(child);
-		}
-	}
-	for (auto& child : toDelete)
-	{
-		m_app->removeFromDB(child, true);
-	}
-
-	parent->addChild(cloud, ccHObject::DP_PARENT_OF_OTHER, 0);
+	m_cloud->getParent()->addChild(cloud, ccHObject::DP_PARENT_OF_OTHER, 0);
 	m_app->addToDB(cloud);
 
 	return true;
@@ -224,15 +223,13 @@ bool GrainsAsEllipsoids::exportResultsAsCloud()
 
 void GrainsAsEllipsoids::initSphereVertices()
 {
-	float radius  = 1.;
-
 	// clear memory of prev arrays
 	std::vector<float>().swap(vertices);
 	std::vector<float>().swap(normals);
 	std::vector<float>().swap(texCoords);
 
 	float x, y, z, xy;                              // vertex position
-	float nx, ny, nz, lengthInv = 1.0f / radius;    // vertex normal
+	float nx, ny, nz;    // vertex normal
 	float s, t;                                     // vertex texCoord
 
 	float sectorStep = 2 * M_PI / sectorCount;
@@ -242,8 +239,8 @@ void GrainsAsEllipsoids::initSphereVertices()
 	for(int i = 0; i <= stackCount; ++i)
 	{
 		stackAngle = M_PI / 2 - i * stackStep;        // starting from pi/2 to -pi/2
-		xy = radius * cosf(stackAngle);             // r * cos(u)
-		z = radius * sinf(stackAngle);              // r * sin(u)
+		xy = cosf(stackAngle);             // r * cos(u)
+		z = sinf(stackAngle);              // r * sin(u)
 
 		// add (sectorCount+1) vertices per stack
 		// first and last vertices have same position and normal, but different tex coords
@@ -259,9 +256,9 @@ void GrainsAsEllipsoids::initSphereVertices()
 			vertices.push_back(z);
 
 			// normalized vertex normal (nx, ny, nz)
-			nx = x * lengthInv;
-			ny = y * lengthInv;
-			nz = z * lengthInv;
+			nx = x;
+			ny = y;
+			nz = z;
 			normals.push_back(nx);
 			normals.push_back(ny);
 			normals.push_back(nz);
@@ -809,6 +806,9 @@ void GrainsAsEllipsoids::drawEllipsoid(CC_DRAW_CONTEXT& context, int idx)
 	{
 		QMatrix4x4 projection;
 		QMatrix4x4 modelView;
+		QMatrix4x4 model;
+		QMatrix4x4 matrixNormal;
+
 		Eigen::Matrix3f rotation(m_rotationMatrix[idx].transpose());
 		QMatrix4x4 matrixFromFit(rotation(0, 0), rotation(0, 1), rotation(0, 2), m_center[idx](0),
 								 rotation(1, 0), rotation(1, 1), rotation(1, 2), m_center[idx](1),
@@ -822,6 +822,7 @@ void GrainsAsEllipsoids::drawEllipsoid(CC_DRAW_CONTEXT& context, int idx)
 		glFunc->glEnable(GL_BLEND);
 		m_program->setUniformValue("materialAmbient", color.x, color.y, color.z, 1.);
 		m_program->setUniformValue("materialDiffuse", color.x, color.y, color.z, 1.);
+		m_program->setUniformValue("objectColor", color.x, color.y, color.z);
 
 		// prepare translation, rotation and scaling
 		glFunc->glPushMatrix(); // save the current matrix
@@ -834,6 +835,10 @@ void GrainsAsEllipsoids::drawEllipsoid(CC_DRAW_CONTEXT& context, int idx)
 		// get matrices
 		glFunc->glGetFloatv(GL_PROJECTION_MATRIX, projection.data());
 		glFunc->glGetFloatv(GL_MODELVIEW_MATRIX, modelView.data());
+		matrixNormal = modelView;
+		matrixNormal.setColumn(3, QVector4D(0,0,0,1));
+		m_program->setUniformValue("modelViewMatrix", modelView);
+		m_program->setUniformValue("normalMatrix", matrixNormal);
 		m_program->setUniformValue("modelViewProjectionMatrix", projection * modelView);
 
 		// draw triangles
@@ -886,6 +891,7 @@ bool GrainsAsEllipsoids::drawEllipsoids(CC_DRAW_CONTEXT& context)
 	m_program->setUniformValue("lightSpecular", lightSpecular);
 	m_program->setUniformValue("materialSpecular", materialSpecular);
 	m_program->setUniformValue("materialShininess", materialShininess);
+	m_program->setUniformValue("transparency", m_transparency);
 
 	m_program->setAttributeArray("vertexPosition", static_cast<GLfloat*>(vertices.data()), 3);
 	m_program->setAttributeArray("vertexNormal", static_cast<GLfloat*>(normals.data()), 3);
@@ -1007,23 +1013,8 @@ void GrainsAsEllipsoids::drawGrains(CC_DRAW_CONTEXT& context)
 		return;
 	}
 
-	QOpenGLFunctions_2_1* glFunc = context.glFunctions<QOpenGLFunctions_2_1>();
-	assert(glFunc != nullptr);
-
-	QMatrix4x4 projection;
-	QMatrix4x4 modelView;
-	glFunc->glGetFloatv(GL_PROJECTION_MATRIX, projection.data());
-	glFunc->glGetFloatv(GL_MODELVIEW_MATRIX, modelView.data());
-	QMatrix4x4 projectionModelView = projection * modelView; // QMatrix4x4 expects row major data
-
 	m_program->bind();
-	// set uniforms
-	m_program->setUniformValue("modelViewProjectionMatrix", projectionModelView);
 
-	QMatrix4x4 matrixNormal = modelView;
-	matrixNormal.setColumn(3, QVector4D(0,0,0,1));
-	m_program->setUniformValue("modelViewMatrix", modelView);
-	m_program->setUniformValue("normalMatrix", matrixNormal);
 	drawEllipsoids(context);
 
 	m_program->release();
@@ -1035,20 +1026,21 @@ void GrainsAsEllipsoids::setOnlyOne(int i)
 {
 	m_onlyOne = i;
 	updateBBoxOnlyOne(i);
+	redrawDisplay();
 }
 
 void GrainsAsEllipsoids::showOnlyOne(bool state)
 {
 	m_showAll =!state;
 	m_ccBBox = m_ccBBoxOnlyOne;
-	m_app->updateUI();
+	redrawDisplay();
 }
 
 void GrainsAsEllipsoids::showAll(bool state)
 {
 	m_showAll = state;
 	m_ccBBox = m_ccBBoxAll;
-	m_app->updateUI();
+	redrawDisplay();
 }
 
 void GrainsAsEllipsoids::draw(CC_DRAW_CONTEXT& context)

@@ -1,6 +1,7 @@
 #version 330
 
 // uniforms
+uniform mat4 modelMatrix;
 uniform mat4 modelViewMatrix;
 uniform mat4 normalMatrix;
 uniform mat4 modelViewProjectionMatrix;

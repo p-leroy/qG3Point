@@ -92,12 +92,11 @@ public:
 
 	void showAll(bool state);
 
-	void setTransparency(double transparency){m_transparency = transparency;}
-
-	void drawSurfaces(bool state){m_drawSurfaces = state;}
-	void drawLines(bool state){m_drawLines = state;}
-	void drawPoints(bool state){m_drawPoints = state;}
-	void setGLPointSize(int size){m_glPointSize = size;}
+	void setTransparency(double transparency){m_transparency = transparency; redrawDisplay();}
+	void drawSurfaces(bool state){m_drawSurfaces = state; redrawDisplay();}
+	void drawLines(bool state){m_drawLines = state; redrawDisplay();}
+	void drawPoints(bool state){m_drawPoints = state; redrawDisplay();}
+	void setGLPointSize(int size){m_glPointSize = size; redrawDisplay();}
 
 	//Inherited from ccHObject
 
@@ -126,7 +125,7 @@ public:
 	std::vector<Eigen::Array3f> m_radii;
 	std::vector<Eigen::Matrix3f> m_rotationMatrix;
 	std::set<int> m_fitNotOK;
-	double m_transparency = 1.0;
+	GLfloat m_transparency = 1.0;
 	bool m_drawSurfaces = true;
 	bool m_drawLines = true;
 	bool m_drawPoints = false;
