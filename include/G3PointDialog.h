@@ -16,10 +16,7 @@ public:
 	~G3PointDialog();
 
 	void emitSegment(){emit segment();}
-	void emitCluster(){emit cluster();}
-	void emitSegmentCluster(){emit segmentCluster();}
-	void emitClean(){emit clean();}
-	void emitSegmentClusterClean(){emit segmentClusterClean();}
+	void emitClusterAndOrClean(){emit clusterAndOrClean();}
 	void emitGetBorders(){emit getBorders();}
 
 	void emitAllClicked(bool state){emit allClicked(state);}
@@ -39,22 +36,19 @@ public:
 	double getMinFlatness();
 	int getNMin();
 	int getkNN();
-	int getPointSize();
 	double getRadiusFactor();
 
 	bool isSteepestSlope();
-	void enableCluster(bool state);
-	void enableClean(bool state);
+	void enableClusterAndOrClean(bool state);
+	bool clusterIsEnabled();
+	bool cleanIsEnabled();
 
 	void setOnlyOneMax(int idx);
 	void enableDrawPointsForOnlyOneGrain(bool state);
 
 signals:
 	void segment();
-	void cluster();
-	void segmentCluster();
-	void clean();
-	void segmentClusterClean();
+	void clusterAndOrClean();
 	void getBorders();
 	void fit();
 

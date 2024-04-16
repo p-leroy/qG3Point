@@ -30,8 +30,7 @@ public:
 	static void createAction(ccMainAppInterface *appInterface);
 	static void GetG3PointAction(ccPointCloud *cloud, ccMainAppInterface *app=nullptr);
 	void segment();
-	void segmentAndCluster();
-	void segmentAndClusterAndClean();
+	void clusterAndOrClean();
 	void getBorders();
 	int cluster();
 	void fit();
@@ -51,7 +50,6 @@ private:
 	bool updateLocalMaximumIndexes();
 	bool updateLabelsAndColors();
 	bool checkStacks(const std::vector<std::vector<int>>& stacks, int count);
-	int segmentLabelsSteepestSlope(bool useParallelStrategy=true);
 	void addToStackBraunWillett(int index, const Eigen::ArrayXi& delta, const Eigen::ArrayXi &Di, std::vector<int>& stack, int local_maximum);
 	int segmentLabelsBraunWillett(bool useParallelStrategy=true);
 	void getNeighborsDistancesSlopes(unsigned index);
@@ -84,6 +82,9 @@ private:
 	Eigen::ArrayXi m_labels;
 	Eigen::ArrayXi m_labelsnpoint;
 	Eigen::ArrayXi m_localMaximumIndexes;
+	Eigen::ArrayXi m_initial_labels;
+	Eigen::ArrayXi m_initial_labelsnpoint;
+	Eigen::ArrayXi m_initial_localMaximumIndexes;
 	Eigen::ArrayXi m_ndon;
 	Eigen::ArrayXd m_area;
 

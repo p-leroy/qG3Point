@@ -13,10 +13,7 @@ G3PointDialog::G3PointDialog(QString cloudName, QWidget *parent)
 	ui->labelCloud->setText(cloudName);
 
 	connect(this->ui->pushButtonSegment, &QPushButton::clicked, this, &G3PointDialog::emitSegment);
-	connect(this->ui->pushButtonCluster, &QPushButton::clicked, this, &G3PointDialog::emitCluster);
-	connect(this->ui->pushButtonSegmentCluster, &QPushButton::clicked, this, &G3PointDialog::emitSegmentCluster);
-	connect(this->ui->pushButtonClean, &QPushButton::clicked, this, &G3PointDialog::emitClean);
-	connect(this->ui->pushButtonSegmentClusterClean, &QPushButton::clicked, this, &G3PointDialog::emitSegmentClusterClean);
+	connect(this->ui->pushButtonClusterAndOrClean, &QPushButton::clicked, this, &G3PointDialog::emitClusterAndOrClean);
 	connect(this->ui->pushButtonGetBorders, &QPushButton::clicked, this, &G3PointDialog::emitGetBorders);
 
 	connect(this->ui->radioButtonAll, &QRadioButton::clicked, this, &G3PointDialog::emitAllClicked);
@@ -24,7 +21,6 @@ G3PointDialog::G3PointDialog(QString cloudName, QWidget *parent)
 	connect(this->ui->spinBoxOnlyOne, qOverload<int>(&QSpinBox::valueChanged), this, &::G3PointDialog::emitOnlyOneChanged);
 
 	connect(this->ui->pushButtonFit, &QPushButton::clicked, this, &G3PointDialog::emitFit);
-	connect(this->ui->doubleSpinBoxTransparency, qOverload<double>(&QDoubleSpinBox::valueChanged), this, &G3PointDialog::emitTransparencyChanged);
 	connect(this->ui->checkBoxSurfaces, &QCheckBox::clicked, this, &G3PointDialog::emitDrawSurfaces);
 	connect(this->ui->checkBoxWireframes, &QCheckBox::clicked, this, &::G3PointDialog::emitDrawLines);
 	connect(this->ui->checkBoxPoints, &QCheckBox::clicked, this, &G3PointDialog::emitDrawPoints);
@@ -63,11 +59,6 @@ int G3PointDialog::getkNN()
 	return this->ui->spinBoxkNN->value();
 }
 
-int G3PointDialog::getPointSize()
-{
-	return this->ui->spinBoxPointSize->value();
-}
-
 double G3PointDialog::getRadiusFactor()
 {
 	return ui->doubleSpinBoxRadiusFactor->value();
@@ -78,14 +69,19 @@ bool G3PointDialog::isSteepestSlope()
 	return this->ui->radioButtonSteepestSlope->isChecked();
 }
 
-void G3PointDialog::enableCluster(bool state)
+void G3PointDialog::enableClusterAndOrClean(bool state)
 {
-	this->ui->pushButtonCluster->setEnabled(state);
+	this->ui->groupBoxClusterAndOrClean->setEnabled(state);
 }
 
-void G3PointDialog::enableClean(bool state)
+bool G3PointDialog::clusterIsEnabled()
 {
-	this->ui->pushButtonClean->setEnabled(state);
+	return this->ui->checkBoxClustering->isEnabled();
+}
+
+bool G3PointDialog::cleanIsEnabled()
+{
+	return this->ui->checkBoxCleaning->isEnabled();
 }
 
 void G3PointDialog::emitSignals()

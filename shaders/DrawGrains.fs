@@ -11,7 +11,6 @@ uniform vec4 materialSpecular;          // material specular color
 uniform float materialShininess;        // material specular shininess
 uniform bool drawLines;
 uniform bool drawPoints;
-uniform float transparency;
 
 uniform vec3 objectColor;
 
@@ -49,11 +48,12 @@ void main()
 	vec3 specular = specularStrength * spec * lightColor;  
 	
 	//vec3 result = (ambient + diffuse + specular) * objectColor;
-	vec3 result = (ambient + diffuse) * objectColor;
+	//vec3 result = (ambient + diffuse) * objectColor;
+	vec3 result = objectColor;
 
 	if (drawPoints)
 	{
-		fragColor = vec4(result * vec3(0.9, 0.9, 0.9), 1.);
+		fragColor = vec4(result * vec3(0.8, 0.8, 0.8), 1.);
 	}
 	else
 	{
@@ -63,7 +63,7 @@ void main()
 		}
 		else
 		{
-			fragColor =  vec4(result, 1.);
+			fragColor =  vec4(result, transparency);
 		}
 	}
 }

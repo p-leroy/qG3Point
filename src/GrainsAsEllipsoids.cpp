@@ -891,7 +891,6 @@ bool GrainsAsEllipsoids::drawEllipsoids(CC_DRAW_CONTEXT& context)
 	m_program->setUniformValue("lightSpecular", lightSpecular);
 	m_program->setUniformValue("materialSpecular", materialSpecular);
 	m_program->setUniformValue("materialShininess", materialShininess);
-	m_program->setUniformValue("transparency", m_transparency);
 
 	m_program->setAttributeArray("vertexPosition", static_cast<GLfloat*>(vertices.data()), 3);
 	m_program->setAttributeArray("vertexNormal", static_cast<GLfloat*>(normals.data()), 3);

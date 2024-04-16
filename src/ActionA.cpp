@@ -72,8 +72,8 @@ void G3PointAction::GetG3PointAction(ccPointCloud *cloud, ccMainAppInterface *ap
 	s_g3PointAction->init();
 
 	// do actions immediately for debug
-	s_g3PointAction->segment();
-	s_g3PointAction->fit();
+	//s_g3PointAction->segment();
+	//s_g3PointAction->fit();
 }
 
 RGBAColorsTableType getRandomColors(int randomColorsNumber)
@@ -594,7 +594,6 @@ bool G3PointAction::exportLocalMaximaAsCloud()
 	}
 
 	cloud->showColors(true);
-	cloud->setPointSize(m_dlg->getPointSize());
 
 	ccHObject* parent = m_cloud->getParent();
 	int nbChildren = parent->getChildrenNumber();
@@ -1144,7 +1143,7 @@ int G3PointAction::segmentLabelsBraunWillett(bool useParallelStrategy)
 	{
 		nb_maxima = (extreme_slopes >= 0).count();
 	}
-	m_localMaximumIndexes = Eigen::ArrayXi::Zero(nb_maxima);
+	m_initial_localMaximumIndexes = Eigen::ArrayXi::Zero(nb_maxima);
 	int l = 0;
 	for (unsigned int k = 0; k < m_cloud->size(); k++)
 	{
@@ -1152,7 +1151,7 @@ int G3PointAction::segmentLabelsBraunWillett(bool useParallelStrategy)
 		{
 			if (extreme_slopes(k) <= 0)
 			{
-				m_localMaximumIndexes(l) = k;
+				m_initial_localMaximumIndexes(l) = k;
 				receivers(k) = k;
 				l++;
 			}
@@ -1161,7 +1160,7 @@ int G3PointAction::segmentLabelsBraunWillett(bool useParallelStrategy)
 		{
 			if (extreme_slopes(k) >= 0)
 			{
-				m_localMaximumIndexes(l) = k;
+				m_initial_localMaximumIndexes(l) = k;
 				receivers(k) = k;
 				l++;
 			}
@@ -1213,7 +1212,7 @@ int G3PointAction::segmentLabelsBraunWillett(bool useParallelStrategy)
 	// build the stacks
 	std::cout << "[segment_labels_braun_willett] build the stacks" << std::endl;
 
-	int sfIdx = m_cloud->getScalarFieldIndexByName("g3point_label");
+	int sfIdx = m_cloud->getScalarFieldIndexByName("g3point_initial_segmentation");
 	if (sfIdx == -1)
 	{
 		sfIdx = m_cloud->addScalarField("g3point_label");
@@ -1224,7 +1223,7 @@ int G3PointAction::segmentLabelsBraunWillett(bool useParallelStrategy)
 	}
 	CCCoreLib::ScalarField* g3point_label = m_cloud->getScalarField(sfIdx);
 
-	RGBAColorsTableType randomColors = getRandomColors(m_localMaximumIndexes.size());
+	RGBAColorsTableType randomColors = getRandomColors(m_initial_localMaximumIndexes.size());
 
 	if (!m_cloud->resizeTheRGBTable(false))
 	{
@@ -1232,16 +1231,16 @@ int G3PointAction::segmentLabelsBraunWillett(bool useParallelStrategy)
 		return -1;
 	}
 
-	for (int k = 0; k < m_localMaximumIndexes.size(); k++)
+	for (int k = 0; k < m_initial_localMaximumIndexes.size(); k++)
 	{
-		int localMaximumIndex = m_localMaximumIndexes(k);
+		int localMaximumIndex = m_initial_localMaximumIndexes(k);
 		std::vector<int> stack;
 		addToStackBraunWillett(localMaximumIndex, delta, Di, stack, localMaximumIndex);
 		// labels
 		for (auto i : stack)
 		{
-			m_labels(i) = k;
-			m_labelsnpoint(i) = stack.size();
+			m_initial_labels(i) = k;
+			m_initial_labelsnpoint(i) = stack.size();
 			if (g3point_label)
 			{
 				g3point_label->setValue(i, k);
@@ -1269,144 +1268,7 @@ int G3PointAction::segmentLabelsBraunWillett(bool useParallelStrategy)
 		m_app->updateUI();
 	}
 
-	int nLabels = m_localMaximumIndexes.size();
-
-	return nLabels;
-}
-
-int G3PointAction::segmentLabelsSteepestSlope(bool useParallelStrategy)
-{
-	std::cout << "[segment_labels]" << std::endl;
-	// for each point, find in the neighborhood the point with the steepest slope (the receiver)
-	Eigen::ArrayXd steepest_slopes(m_neighborsSlopes.rowwise().maxCoeff());
-	Eigen::ArrayXi index_of_steepest_slope = Eigen::ArrayXi::Zero(m_cloud->size());
-	Eigen::ArrayXi receivers(m_cloud->size());
-
-	for (unsigned index = 0; index < m_cloud->size(); index++)
-	{
-		double steepest_slope = steepest_slopes(index);
-		int count = 0;
-		for (int k = 0; k < m_kNN; k++)
-		{
-			if (m_neighborsSlopes(index, k) == steepest_slope)
-			{
-				index_of_steepest_slope(index) = k;
-				count++;
-				if (count > 1)
-					std::cout << "[segment_labels] slope already seen, index " << index << ", k "<< k << std::endl;
-			}
-		}
-		receivers(index) = m_neighborsIndexes(index, index_of_steepest_slope(index));
-	}
-
-	// if the minimum slope is positive, the receiver is a base level node
-	int nb_maxima = (steepest_slopes < 0).count();
-	m_localMaximumIndexes = Eigen::ArrayXi::Zero(nb_maxima);
-	int l = 0;
-	for (unsigned int k = 0; k < m_cloud->size(); k++)
-	{
-		if (steepest_slopes(k) < 0)
-		{
-			m_localMaximumIndexes(l) = k;
-			receivers(k) = k;
-			l++;
-		}
-	}
-
-	// identify the donors for each receiver
-	std::cout << "[segment_labels] identify the donors for each receiver" << std::endl;
-	Eigen::ArrayXi nDonors = Eigen::ArrayXi::Zero(m_cloud->size());
-	Eigen::ArrayXXi donors = Eigen::ArrayXXi::Zero(m_cloud->size(), m_kNN);
-
-	std::cout << "[segment_labels] loop" << std::endl;
-	for (unsigned int k = 0; k < m_cloud->size(); k++)
-	{
-		int receiver = receivers(k);
-		if (receiver != k)  // this receiver is not a local maximum
-		{
-			if (nDonors(receiver) < m_kNN - 1)
-			{
-				nDonors(receiver) = nDonors(receiver) + 1;
-				donors(receiver, nDonors(receiver) - 1) = k;
-			}
-			else
-			{
-				std::cout << "maximum number of donors reached, k " << k << ", receiver(k) " << receiver << ", nDonors " << nDonors(receiver) << std::endl;
-			}
-		}
-	}
-
-	// build the stacks
-	std::cout << "[segment_labels] build the stacks" << std::endl;
-	Eigen::ArrayXi labels = Eigen::ArrayXi::Zero(m_cloud->size());
-	Eigen::ArrayXi labelsnpoint = Eigen::ArrayXi::Zero(m_cloud->size());
-	std::vector<std::vector<int>> stacks;
-
-	int sfIdx = m_cloud->getScalarFieldIndexByName("g3point_label");
-	if (sfIdx == -1)
-	{
-		sfIdx = m_cloud->addScalarField("g3point_label");
-		if (sfIdx == -1)
-		{
-			ccLog::Error("[G3Point::segment_labels] impossible to create scalar field g3point_label");
-		}
-	}
-
-	CCCoreLib::ScalarField* g3point_label = m_cloud->getScalarField(sfIdx);
-	RGBAColorsTableType randomColors = getRandomColors(m_localMaximumIndexes.size());
-
-	if (!m_cloud->resizeTheRGBTable(false))
-	{
-		ccLog::Error(QObject::tr("Not enough memory!"));
-		return -1;
-	}
-
-	for (int k = 0; k < m_localMaximumIndexes.size(); k++)
-	{
-		int localMaximumIndex = m_localMaximumIndexes(k);
-		std::vector<int> stack;
-		addToStack(localMaximumIndex, nDonors, donors, stack);
-		// labels
-		for (auto i : stack)
-		{
-			labels(i) = k;
-			labelsnpoint(i) = stack.size();
-			if (g3point_label)
-			{
-				g3point_label->setValue(i, k);
-				m_cloud->setPointColor(i, randomColors.getValue(k));
-			}
-		}
-		stacks.push_back(stack);
-	}
-
-	if (g3point_label)
-	{
-		g3point_label->computeMinAndMax();
-	}
-
-	m_cloud->setCurrentDisplayedScalarField(sfIdx);
-	m_cloud->showColors(true);
-	m_cloud->showSF(false);
-
-	//	m_cloud->redrawDisplay();
-	//	m_cloud->prepareDisplayForRefresh();
-
-	//	ccHObject::Container selectedEntities;
-	//	selectedEntities.push_back(cloud);
-
-	//	if (!sfConvertToRandomRGB(selectedEntities, m_app->getMainWindow()))
-	//	{
-	//		ccLog::Error("[G3Point::segment_labels] impossible to convert g3point_label to RGB colors");
-	//	}
-
-	if (m_app)
-	{
-		m_app->refreshAll();
-		m_app->updateUI();
-	}
-
-	int nLabels = m_localMaximumIndexes.size();
+	int nLabels = m_initial_localMaximumIndexes.size();
 
 	return nLabels;
 }
@@ -1665,28 +1527,34 @@ void G3PointAction::segment()
 	// Perform initial segmentation
 	int nLabels = segmentLabelsBraunWillett();
 
+	// initialize variables for clustering and / or cleaning
+	m_labels = m_initial_labels;
+	m_labelsnpoint = m_initial_labelsnpoint;
+	m_localMaximumIndexes = m_initial_localMaximumIndexes;
+
 	exportLocalMaximaAsCloud();
 
 	m_app->dispToConsole( "[G3Point] initial segmentation: " + QString::number(nLabels) + " labels", ccMainAppInterface::STD_CONSOLE_MESSAGE );
 
-	m_dlg->enableCluster(true);
-	m_dlg->enableClean(true);
+	m_dlg->enableClusterAndOrClean(true);
 }
 
-void G3PointAction::segmentAndCluster()
+void G3PointAction::clusterAndOrClean()
 {
-	segment();
+	// initialize variables for clustering and / or cleaning to the initial segmentation
+	m_labels = m_initial_labels;
+	m_labelsnpoint = m_initial_labelsnpoint;
+	m_localMaximumIndexes = m_initial_localMaximumIndexes;
 
-	cluster();
-}
+	if (m_dlg->clusterIsEnabled())
+	{
+		cluster();
+	}
 
-void G3PointAction::segmentAndClusterAndClean()
-{
-	segment();
-
-	cluster();
-
-	cleanLabels();
+	if (m_dlg->cleanIsEnabled())
+	{
+		cleanLabels();
+	}
 }
 
 void G3PointAction::getBorders()
@@ -1739,6 +1607,8 @@ void G3PointAction::init()
 
 	m_labels = Eigen::ArrayXi::Zero(m_cloud->size());
 	m_labelsnpoint = Eigen::ArrayXi::Zero(m_cloud->size());
+	m_initial_labels = Eigen::ArrayXi::Zero(m_cloud->size());
+	m_initial_labelsnpoint = Eigen::ArrayXi::Zero(m_cloud->size());
 
 	m_stacks.clear();  // needed in case of several runs
 }
@@ -1750,10 +1620,7 @@ void G3PointAction::showDlg()
 		m_dlg = new G3PointDialog(m_cloud->getName());
 
 		connect(m_dlg, &G3PointDialog::segment, s_g3PointAction, &G3Point::G3PointAction::segment);
-		connect(m_dlg, &G3PointDialog::cluster, s_g3PointAction, &G3Point::G3PointAction::cluster);
-		connect(m_dlg, &G3PointDialog::segmentCluster, s_g3PointAction, &G3Point::G3PointAction::segmentAndCluster);
-		connect(m_dlg, &G3PointDialog::clean, s_g3PointAction, &G3Point::G3PointAction::cleanLabels);
-		connect(m_dlg, &G3PointDialog::segmentClusterClean, s_g3PointAction, &G3Point::G3PointAction::segmentAndClusterAndClean);
+		connect(m_dlg, &G3PointDialog::clusterAndOrClean, s_g3PointAction, &G3Point::G3PointAction::clusterAndOrClean);
 		connect(m_dlg, &G3PointDialog::getBorders, s_g3PointAction, &G3Point::G3PointAction::getBorders);
 
 		connect(m_dlg, &G3PointDialog::fit, s_g3PointAction, &G3Point::G3PointAction::fit);
@@ -1763,7 +1630,7 @@ void G3PointAction::showDlg()
 	}
 	else
 	{
-		m_dlg->enableCluster(false);
+		m_dlg->enableClusterAndOrClean(false);
 	}
 
 	m_dlg->show();
