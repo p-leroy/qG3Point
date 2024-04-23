@@ -32,9 +32,9 @@ public:
 	void segment();
 	void clusterAndOrClean();
 	void getBorders();
-	int cluster();
+	bool cluster();
 	void fit();
-	bool processNewStacks(std::vector<std::vector<int>>& stacks, int pointCount);
+	bool processNewStacks(std::vector<std::vector<int>>& newStacks, int pointCount);
 	bool merge(XXb& condition);
 	bool keep(Xb& condition);
 	bool cleanLabels();
@@ -46,7 +46,7 @@ private:
 	int segmentLabels(bool useParallelStrategy=true);
 	double angleRot2VecMat(const Eigen::Vector3d &a, const Eigen::Vector3d &b);
 	Eigen::ArrayXXd computeMeanAngleBetweenNormalsAtBorders();
-	bool exportLocalMaximaAsCloud();
+	bool exportLocalMaximaAsCloud(const Eigen::ArrayXi &localMaximumIndexes);
 	bool updateLocalMaximumIndexes();
 	bool updateLabelsAndColors();
 	bool checkStacks(const std::vector<std::vector<int>>& stacks, int count);
@@ -79,17 +79,18 @@ private:
 	Eigen::ArrayXXd m_neighborsSlopes;
 	Eigen::ArrayXXd m_normals;
 
-	Eigen::ArrayXi m_labels;
-	Eigen::ArrayXi m_labelsnpoint;
-	Eigen::ArrayXi m_localMaximumIndexes;
 	Eigen::ArrayXi m_initial_labels;
 	Eigen::ArrayXi m_initial_labelsnpoint;
 	Eigen::ArrayXi m_initial_localMaximumIndexes;
+	Eigen::ArrayXi m_labels;
+	Eigen::ArrayXi m_labelsnpoint;
+	Eigen::ArrayXi m_localMaximumIndexes;
 	Eigen::ArrayXi m_ndon;
 	Eigen::ArrayXd m_area;
 
 	QSharedPointer<RGBAColorsTableType> m_grainColors;
 
+	std::vector<std::vector<int>> m_initialStacks;
 	std::vector<std::vector<int>> m_stacks;
 
 	ccOctree::Shared m_octree;

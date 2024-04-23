@@ -40,8 +40,8 @@ public:
 
 	bool isSteepestSlope();
 	void enableClusterAndOrClean(bool state);
-	bool clusterIsEnabled();
-	bool cleanIsEnabled();
+	bool clusterIsChecked();
+	bool cleanIsChecked();
 
 	void setOnlyOneMax(int idx);
 	void enableDrawPointsForOnlyOneGrain(bool state);

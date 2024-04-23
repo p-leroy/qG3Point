@@ -74,14 +74,14 @@ void G3PointDialog::enableClusterAndOrClean(bool state)
 	this->ui->groupBoxClusterAndOrClean->setEnabled(state);
 }
 
-bool G3PointDialog::clusterIsEnabled()
+bool G3PointDialog::clusterIsChecked()
 {
-	return this->ui->checkBoxClustering->isEnabled();
+	return this->ui->checkBoxClustering->isChecked();
 }
 
-bool G3PointDialog::cleanIsEnabled()
+bool G3PointDialog::cleanIsChecked()
 {
-	return this->ui->checkBoxCleaning->isEnabled();
+	return this->ui->checkBoxCleaning->isChecked();
 }
 
 void G3PointDialog::emitSignals()

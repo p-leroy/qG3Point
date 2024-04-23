@@ -69,11 +69,6 @@ void G3PointAction::GetG3PointAction(ccPointCloud *cloud, ccMainAppInterface *ap
 		s_g3PointAction->setCloud(cloud);
 	}
 	s_g3PointAction->showDlg();
-	s_g3PointAction->init();
-
-	// do actions immediately for debug
-	//s_g3PointAction->segment();
-	//s_g3PointAction->fit();
 }
 
 RGBAColorsTableType getRandomColors(int randomColorsNumber)
@@ -570,16 +565,16 @@ bool G3PointAction::updateLabelsAndColors()
 	return true;
 }
 
-bool G3PointAction::exportLocalMaximaAsCloud()
+bool G3PointAction::exportLocalMaximaAsCloud(const Eigen::ArrayXi& localMaximumIndexes)
 {
 	// create cloud
 	// QString cloudName = m_cloud->getName() + "_g3point";
 	QString cloudName = "g3point_summits";
 	ccPointCloud *cloud = new ccPointCloud(cloudName);
 
-	RGBAColorsTableType randomColors = getRandomColors(m_localMaximumIndexes.size());
+	RGBAColorsTableType randomColors = getRandomColors(localMaximumIndexes.size());
 
-	for (auto index : m_localMaximumIndexes)
+	for (auto index : localMaximumIndexes)
 	{
 		cloud->addPoint(*m_cloud->getPoint(index));
 	}
@@ -619,22 +614,22 @@ bool G3PointAction::exportLocalMaximaAsCloud()
 	return true;
 }
 
-bool G3PointAction::processNewStacks(std::vector<std::vector<int>>& stacks, int pointCount)
+bool G3PointAction::processNewStacks(std::vector<std::vector<int>>& newStacks, int pointCount)
 {
-	if (!checkStacks(stacks, pointCount))
+	if (!checkStacks(newStacks, pointCount))
 	{
-		ccLog::Error("[G3PointAction::merge] newStacks is not valid");
+		ccLog::Error("[G3PointAction::processNewStacks] newStacks is not valid");
 		return false;
 	}
 
 	// new stacks are valid, set the class attribute
-	m_stacks = stacks;
+	m_stacks = newStacks;
 
 	updateLocalMaximumIndexes();
 
 	updateLabelsAndColors();
 
-	exportLocalMaximaAsCloud();
+	exportLocalMaximaAsCloud(m_localMaximumIndexes);
 
 	return true;
 }
@@ -728,7 +723,10 @@ bool G3PointAction::merge(XXb& condition)
 				 + "/" + QString::number(m_stacks.size()) + " labels ("
 				 + QString::number(m_stacks.size() - newStacks.size()) + " removed)");
 
-	processNewStacks(newStacks, m_cloud->size());
+	if (!processNewStacks(newStacks, m_cloud->size()))
+	{
+		ccLog::Error("[G3PointAction::merge] processing newStacks failed");
+	}
 
 	return true;
 }
@@ -754,13 +752,13 @@ bool G3PointAction::keep(Xb& condition)
 
 	if (!processNewStacks(newStacks, pointCount))
 	{
-		ccLog::Error("[G3PointAction::keepLabels] processing newStacks failed");
+		ccLog::Error("[G3PointAction::keep] processing newStacks failed");
 	}
 
 	return true;
 }
 
-int G3PointAction::cluster()
+bool G3PointAction::cluster()
 {
 	ccLog::Print("[cluster_labels]");
 	size_t nlabels = m_stacks.size();
@@ -770,6 +768,14 @@ int G3PointAction::cluster()
 
 	// Compute the distances between the sinks associated to each label
 	Eigen::ArrayXXd D1(nlabels, nlabels);
+	if (m_localMaximumIndexes.size() != nlabels)
+	{
+		ccLog::Error("[G3PointAction::cluster] m_localMaximumIndexes size ("
+					 + QString::number(m_localMaximumIndexes.size())
+					 + ") different from nlabels "
+					 + QString::number(nlabels));
+		return false;
+	}
 	for (int i = 0; i < nlabels; i++)
 	{
 		for (int j = 0; j < nlabels; j++)
@@ -941,23 +947,16 @@ int G3PointAction::cluster()
 				 + "/" + QString::number(m_stacks.size()) + " labels ("
 				 + QString::number(m_stacks.size() - newStacks.size()) + " removed)");
 
-	if (!checkStacks(newStacks, m_cloud->size()))
+	if (!processNewStacks(newStacks, m_cloud->size()))
 	{
-		ccLog::Error("newStacks is not valid");
+		ccLog::Error("[G3PointAction::cluster] new stacks are not valid");
+		return false;
 	}
-
-	m_stacks = newStacks;
-
-	updateLocalMaximumIndexes();
-
-	updateLabelsAndColors();
-
-	exportLocalMaximaAsCloud();
 
 	std::cout << "(b) m_stacks.size() " << m_stacks.size() << std::endl;
 	std::cout << "(b) m_labels.size() " << m_labels.size() << std::endl;
 
-	return 0;
+	return true;
 }
 
 void G3PointAction::fit()
@@ -1143,7 +1142,7 @@ int G3PointAction::segmentLabelsBraunWillett(bool useParallelStrategy)
 	{
 		nb_maxima = (extreme_slopes >= 0).count();
 	}
-	m_initial_localMaximumIndexes = Eigen::ArrayXi::Zero(nb_maxima);
+	m_initial_localMaximumIndexes = Eigen::ArrayXi::Zero(nb_maxima); // we need nb_maxima for the initialization
 	int l = 0;
 	for (unsigned int k = 0; k < m_cloud->size(); k++)
 	{
@@ -1215,10 +1214,10 @@ int G3PointAction::segmentLabelsBraunWillett(bool useParallelStrategy)
 	int sfIdx = m_cloud->getScalarFieldIndexByName("g3point_initial_segmentation");
 	if (sfIdx == -1)
 	{
-		sfIdx = m_cloud->addScalarField("g3point_label");
+		sfIdx = m_cloud->addScalarField("g3point_initial_segmentation");
 		if (sfIdx == -1)
 		{
-			ccLog::Error("[G3Point::segment_labels] impossible to create scalar field g3point_label");
+			ccLog::Error("[G3Point::segment_labels] impossible to create scalar field g3point_initial_segmentation");
 		}
 	}
 	CCCoreLib::ScalarField* g3point_label = m_cloud->getScalarField(sfIdx);
@@ -1247,7 +1246,7 @@ int G3PointAction::segmentLabelsBraunWillett(bool useParallelStrategy)
 				m_cloud->setPointColor(i, randomColors.getValue(k));
 			}
 		}
-		m_stacks.push_back(stack);
+		m_initialStacks.push_back(stack);
 	}
 
 	if (g3point_label)
@@ -1527,33 +1526,41 @@ void G3PointAction::segment()
 	// Perform initial segmentation
 	int nLabels = segmentLabelsBraunWillett();
 
-	// initialize variables for clustering and / or cleaning
-	m_labels = m_initial_labels;
-	m_labelsnpoint = m_initial_labelsnpoint;
-	m_localMaximumIndexes = m_initial_localMaximumIndexes;
-
-	exportLocalMaximaAsCloud();
+	exportLocalMaximaAsCloud(m_initial_localMaximumIndexes);
 
 	m_app->dispToConsole( "[G3Point] initial segmentation: " + QString::number(nLabels) + " labels", ccMainAppInterface::STD_CONSOLE_MESSAGE );
 
 	m_dlg->enableClusterAndOrClean(true);
+
+	// in case we want to test the fitting of ellipsoids now, without clustering nor cleaning
+	m_labels = m_initial_labels;
+	m_labelsnpoint = m_initial_labelsnpoint;
+	m_localMaximumIndexes = m_initial_localMaximumIndexes;
+	m_stacks = m_initialStacks;
 }
 
 void G3PointAction::clusterAndOrClean()
 {
-	// initialize variables for clustering and / or cleaning to the initial segmentation
+	// initialize variables for clustering and / or cleaning  to the initial segmentation
 	m_labels = m_initial_labels;
 	m_labelsnpoint = m_initial_labelsnpoint;
 	m_localMaximumIndexes = m_initial_localMaximumIndexes;
+	m_stacks = m_initialStacks;
 
-	if (m_dlg->clusterIsEnabled())
+	if (m_dlg->clusterIsChecked())
 	{
-		cluster();
+		if (!cluster())
+		{
+			ccLog::Error("[G3PointAction::clusterAndOrClean] clustering failed");
+		}
 	}
 
-	if (m_dlg->cleanIsEnabled())
+	if (m_dlg->cleanIsChecked())
 	{
-		cleanLabels();
+		if (!cleanLabels())
+		{
+			ccLog::Error("[G3PointAction::clusterAndOrClean] cleaning failed");
+		}
 	}
 }
 
@@ -1610,7 +1617,8 @@ void G3PointAction::init()
 	m_initial_labels = Eigen::ArrayXi::Zero(m_cloud->size());
 	m_initial_labelsnpoint = Eigen::ArrayXi::Zero(m_cloud->size());
 
-	m_stacks.clear();  // needed in case of several runs
+	m_stacks.clear(); // needed in case of several runs
+	m_initialStacks.clear(); // needed in case of several runs
 }
 
 void G3PointAction::showDlg()

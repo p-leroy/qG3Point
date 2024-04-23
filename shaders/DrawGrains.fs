@@ -63,7 +63,7 @@ void main()
 		}
 		else
 		{
-			fragColor =  vec4(result, transparency);
+			fragColor =  vec4(result, 1.);
 		}
 	}
 }
