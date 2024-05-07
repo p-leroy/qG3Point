@@ -20,6 +20,7 @@
 
 #include <algorithm>
 #include <iostream>
+#include <fstream>
 #include <random>
 
 #include <G3PointDialog.h>
@@ -758,6 +759,14 @@ bool G3PointAction::keep(Xb& condition)
 	return true;
 }
 
+bool eigenArrayToFile(QString name, Eigen::ArrayXXi array)
+{
+	const Eigen::IOFormat CSVFormat(Eigen::StreamPrecision, Eigen::DontAlignCols, ", ", "\n");
+	std::ofstream file(name.toLatin1());
+	file << array.format(CSVFormat);
+	return true;
+}
+
 bool G3PointAction::cluster()
 {
 	ccLog::Print("[cluster_labels]");
@@ -839,12 +848,15 @@ bool G3PointAction::cluster()
 	// => neighbours (Nneigh == 1)
 	// => normals are similar
 
+	int start = 15;
+	int size = 5;
+
 	std::cout << "\n\nDist" << std::endl;
-	std::cout << Dist.block(0, 0, 10, 10) << std::endl;
+	std::cout << Dist.block(start, start, size, size) << std::endl;
 	std::cout << "\n\nNneigh" << std::endl;
-	std::cout << Nneigh.block(0, 0, 10, 10) << std::endl;
+	std::cout << Nneigh.block(start, start, size, size) << std::endl;
 	std::cout << "\n\nA" << std::endl;
-	std::cout << A.block(0, 0, 10, 10) << std::endl;
+	std::cout << A.block(start, start, size, size) << std::endl;
 
 	if (!checkStacks(m_stacks, m_cloud->size()))
 	{
@@ -854,10 +866,18 @@ bool G3PointAction::cluster()
 	// create the condition matrix and force the symmetry of the matrix
 	XXb condition = (Dist < 1) || (Nneigh < 1) || (A > m_maxAngle1) || (A != A);
 	XXb symmetrical_condition = (condition == condition.transpose()).select(condition, true);
+	symmetrical_condition.count();
 	condition = symmetrical_condition;
 
 	std::cout << "\n\nsymmetrical_condition" << std::endl;
-	std::cout << symmetrical_condition.block(0, 0, 20, 20) << std::endl;
+	std::cout << symmetrical_condition.block(start, start, size, size) << std::endl;
+
+	// <SAVE>
+	eigenArrayToFile("C:/dev/python/g3point_python/data/debug/Dist.csv", Dist);
+	eigenArrayToFile("C:/dev/python/g3point_python/data/debug/Nneigh.csv", Nneigh);
+	eigenArrayToFile("C:/dev/python/g3point_python/data/debug/A.csv", A);
+	eigenArrayToFile("C:/dev/python/g3point_python/data/debug/symmetrical_condition.csv", symmetrical_condition);
+	// </SAVE>
 
 	std::vector<std::vector<int>> newStacks;
 	Eigen::ArrayXi newLabels = Eigen::ArrayXi::Ones(m_labels.size()) * (-1);
@@ -884,7 +904,6 @@ bool G3PointAction::cluster()
 			// shall we merge otherLabel with label?
 			if (!condition(label, otherLabel))
 			{
-
 				std::vector<int>& labelStack = newStacks[newLabels(label)];
 
 				if (newLabels(otherLabel) != -1) // the other label has already been merged
