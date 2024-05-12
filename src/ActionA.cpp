@@ -759,7 +759,8 @@ bool G3PointAction::keep(Xb& condition)
 	return true;
 }
 
-bool eigenArrayToFile(QString name, Eigen::ArrayXXi array)
+template<typename T>
+bool eigenArrayToFile(QString name, T array)
 {
 	const Eigen::IOFormat CSVFormat(Eigen::StreamPrecision, Eigen::DontAlignCols, ", ", "\n");
 	std::ofstream file(name.toLatin1());
