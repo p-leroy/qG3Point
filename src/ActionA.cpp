@@ -874,11 +874,11 @@ bool G3PointAction::cluster()
 	std::cout << symmetrical_condition.block(start, start, size, size) << std::endl;
 
 	// <SAVE>
-	eigenArrayToFile("C:/dev/python/g3point_python/data/debug/Dist.csv", Dist);
-	eigenArrayToFile("C:/dev/python/g3point_python/data/debug/Nneigh.csv", Nneigh);
-	eigenArrayToFile("C:/dev/python/g3point_python/data/debug/A.csv", A);
-	eigenArrayToFile("C:/dev/python/g3point_python/data/debug/symmetrical_condition.csv", symmetrical_condition);
-	// </SAVE>
+//	eigenArrayToFile("C:/dev/python/g3point_python/data/debug/Dist.csv", Dist);
+//	eigenArrayToFile("C:/dev/python/g3point_python/data/debug/Nneigh.csv", Nneigh);
+//	eigenArrayToFile("C:/dev/python/g3point_python/data/debug/A.csv", A);
+//	eigenArrayToFile("C:/dev/python/g3point_python/data/debug/symmetrical_condition.csv", symmetrical_condition);
+//	 </SAVE>
 
 	std::vector<std::vector<int>> newStacks;
 	Eigen::ArrayXi newLabels = Eigen::ArrayXi::Ones(m_labels.size()) * (-1);
