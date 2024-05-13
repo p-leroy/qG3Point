@@ -21,6 +21,7 @@ G3PointDialog::G3PointDialog(QString cloudName, QWidget *parent)
 	connect(this->ui->spinBoxOnlyOne, qOverload<int>(&QSpinBox::valueChanged), this, &::G3PointDialog::emitOnlyOneChanged);
 
 	connect(this->ui->pushButtonFit, &QPushButton::clicked, this, &G3PointDialog::emitFit);
+	connect(this->ui->pushButtonExportResults, &QPushButton::clicked, this, &G3PointDialog::emitExportResults);
 	connect(this->ui->checkBoxSurfaces, &QCheckBox::clicked, this, &G3PointDialog::emitDrawSurfaces);
 	connect(this->ui->checkBoxWireframes, &QCheckBox::clicked, this, &::G3PointDialog::emitDrawLines);
 	connect(this->ui->checkBoxPoints, &QCheckBox::clicked, this, &G3PointDialog::emitDrawPoints);

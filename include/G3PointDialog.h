@@ -23,6 +23,7 @@ public:
 	void emitOnlyOneClicked(bool state){emit onlyOneClicked(state);}
 	void emitOnlyOneChanged(int idx){emit onlyOneChanged(idx);}
 	void emitFit(){emit fit();}
+	void emitExportResults(){emit exportResults();}
 	void emitTransparencyChanged(double transparency){emit transparencyChanged(transparency);}
 	void emitDrawSurfaces(bool state){emit drawSurfaces(state);}
 	void emitDrawLines(bool state){emit drawLines(state);}
@@ -51,6 +52,7 @@ signals:
 	void clusterAndOrClean();
 	void getBorders();
 	void fit();
+	void exportResults();
 
 	void allClicked(bool state);
 	void onlyOneClicked(bool state);

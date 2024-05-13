@@ -814,7 +814,6 @@ bool G3PointAction::cluster()
 	// If the radius of the sink is above the distance to the other sink (by a factor of rad_factor), set Dist to 1
 	Eigen::ArrayXXi Dist = Eigen::ArrayXXi::Zero(nlabels, nlabels);
 	Dist = (m_radiusFactor * D2 > D1).select(1, Dist);
-	std::cout << "Dist" << std::endl;
 	for (int i = 0; i < 10; i++)  // set the values of the diagonal to 0
 	{
 		Dist(i, i) = 0;
@@ -852,13 +851,6 @@ bool G3PointAction::cluster()
 	int start = 15;
 	int size = 5;
 
-	std::cout << "\n\nDist" << std::endl;
-	std::cout << Dist.block(start, start, size, size) << std::endl;
-	std::cout << "\n\nNneigh" << std::endl;
-	std::cout << Nneigh.block(start, start, size, size) << std::endl;
-	std::cout << "\n\nA" << std::endl;
-	std::cout << A.block(start, start, size, size) << std::endl;
-
 	if (!checkStacks(m_stacks, m_cloud->size()))
 	{
 		ccLog::Error("m_stacks is not valid");
@@ -869,9 +861,6 @@ bool G3PointAction::cluster()
 	XXb symmetrical_condition = (condition == condition.transpose()).select(condition, true);
 	symmetrical_condition.count();
 	condition = symmetrical_condition;
-
-	std::cout << "\n\nsymmetrical_condition" << std::endl;
-	std::cout << symmetrical_condition.block(start, start, size, size) << std::endl;
 
 	// <SAVE>
 //	eigenArrayToFile("C:/dev/python/g3point_python/data/debug/Dist.csv", Dist);
@@ -1004,6 +993,14 @@ void G3PointAction::fit()
 	m_app->addToDB(m_cloud);
 
 	m_app->updateUI();
+}
+
+void G3PointAction::exportResults()
+{
+	if (m_grainsAsEllipsoids)
+	{
+		m_grainsAsEllipsoids->exportResultsAsCloud();
+	}
 }
 
 bool G3PointAction::cleanLabels()
@@ -1409,10 +1406,6 @@ bool G3PointAction::computeNormalsWithOpen3D()
 	// compute the normals
 	pcd.EstimateNormals(open3d::geometry::KDTreeSearchParamKNN(m_kNN));
 
-	for (int i = 0; i < 10; i++)
-	{
-		std::cout << pcd.normals_[i].x() << " " << pcd.normals_[i].y() << " " << pcd.normals_[i].z() << std::endl;
-	}
 
 	// we 'compress' each normal
 	int pointCount = m_cloud->size();
@@ -1652,6 +1645,7 @@ void G3PointAction::showDlg()
 		connect(m_dlg, &G3PointDialog::getBorders, s_g3PointAction, &G3Point::G3PointAction::getBorders);
 
 		connect(m_dlg, &G3PointDialog::fit, s_g3PointAction, &G3Point::G3PointAction::fit);
+		connect(m_dlg, &G3PointDialog::exportResults, s_g3PointAction, &G3Point::G3PointAction::exportResults);
 
 		connect(m_dlg, &QDialog::finished, s_g3PointAction, &G3Point::G3PointAction::clean);
 		connect(m_dlg, &QDialog::finished, s_g3PointAction, &G3Point::G3PointAction::resetDlg); // dialog is defined with Qt::WA_DeleteOnClose

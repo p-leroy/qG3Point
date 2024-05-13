@@ -34,6 +34,7 @@ public:
 	void getBorders();
 	bool cluster();
 	void fit();
+	void exportResults();
 	bool processNewStacks(std::vector<std::vector<int>>& newStacks, int pointCount);
 	bool merge(XXb& condition);
 	bool keep(Xb& condition);

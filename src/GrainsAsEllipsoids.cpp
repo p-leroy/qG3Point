@@ -51,8 +51,6 @@ GrainsAsEllipsoids::GrainsAsEllipsoids(ccPointCloud *cloud, ccMainAppInterface *
 	}
 
 	m_ccBBoxAll.setValidity(true);
-
-	exportResultsAsCloud();
 }
 
 void GrainsAsEllipsoids::setShaderPath(const QString& path)
@@ -81,7 +79,6 @@ void GrainsAsEllipsoids::setGrainColorsTable(const RGBAColorsTableType& colorTab
 bool GrainsAsEllipsoids::exportResultsAsCloud()
 {
 	// create cloud
-	// QString cloudName = m_cloud->getName() + "_g3point";
 	QString cloudName = "g3point_results";
 	ccPointCloud *cloud = new ccPointCloud(cloudName);
 
@@ -120,13 +117,15 @@ bool GrainsAsEllipsoids::exportResultsAsCloud()
 		return false;
 	}
 	sf = cloud->getScalarField(sfIdx);
-	for (int index = 0; index < cloud->size(); index++)
+	int indexInResults = 0;
+	for (int index = 0; index < m_center.size(); index++)
 	{
-		if (m_fitNotOK.count(index))
+		if (m_fitNotOK.count(index)) // when the fit was not successful, the point is not exported
 		{
 			continue;
 		}
-		sf->setValue(index, index);
+		sf->setValue(indexInResults, index);
+		indexInResults++;
 	}
 	sf->computeMinAndMax();
 
