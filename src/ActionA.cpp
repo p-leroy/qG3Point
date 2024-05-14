@@ -37,6 +37,8 @@
 
 #include <ccPointCloud.h>
 
+#include <qG3PointDisclaimer.h>
+
 namespace G3Point
 {
 G3PointAction* G3PointAction::s_g3PointAction = nullptr;
@@ -61,6 +63,10 @@ G3PointAction::~G3PointAction()
 
 void G3PointAction::GetG3PointAction(ccPointCloud *cloud, ccMainAppInterface *app)
 {
+	//disclaimer accepted?
+	if (!qG3PointDisclaimer::show(app))
+		return;
+
 	if (!s_g3PointAction) // create the singleton if needed
 	{
 		s_g3PointAction = new G3PointAction(cloud, app);
