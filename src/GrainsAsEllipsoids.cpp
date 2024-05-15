@@ -97,7 +97,7 @@ bool GrainsAsEllipsoids::exportResultsAsCloud()
 	//allocate colors if necessary
 	if (cloud->resizeTheRGBTable())
 	{
-		for (int index = 0; index < cloud->size(); index++)
+		for (unsigned int index = 0; index < cloud->size(); index++)
 		{
 			ccColor::Rgb color(m_grainColors[index].x * ccColor::MAX * 0.8,
 							   m_grainColors[index].y * ccColor::MAX * 0.8,
@@ -141,7 +141,7 @@ bool GrainsAsEllipsoids::exportResultsAsCloud()
 	CCCoreLib::ScalarField* sfRadiusX = cloud->getScalarField(sfIdxRadiusX);
 	CCCoreLib::ScalarField* sfRadiusY = cloud->getScalarField(sfIdxRadiusY);
 	CCCoreLib::ScalarField* sfRadiusZ = cloud->getScalarField(sfIdxRadiusZ);
-	for (int index = 0; index < cloud->size(); index++)
+	for (unsigned int index = 0; index < cloud->size(); index++)
 	{
 		if (m_fitNotOK.count(index))
 		{
@@ -948,52 +948,6 @@ bool GrainsAsEllipsoids::drawEllipsoids(CC_DRAW_CONTEXT& context)
 			// reset the vertex positions to the template sphere
 			m_program->setAttributeArray("vertexPosition", static_cast<GLfloat*>(vertices.data()), 3);
 		}
-	}
-
-	if (false) // Matlab fit of grain 351
-	{
-		Eigen::Matrix3f rotation;
-		rotation << -0.1424, -0.8175, -0.5580,
-			-0.9102, -0.1133,  0.3983,
-			0.3889, -0.5646, 0.7280;
-		rotation.transposeInPlace();
-		QMatrix4x4 matrixFromFit(rotation(0, 0), rotation(0, 1), rotation(0, 2), 22.36920946,
-								 rotation(1, 0), rotation(1, 1), rotation(1, 2), 17.15421478,
-								 rotation(2, 0), rotation(2, 1), rotation(2, 2), -11.2193826,
-								 0, 0, 0, 1);
-
-		color = CCVector3f(static_cast<float>(255) / ccColor::MAX,
-						   static_cast<float>(255) / ccColor::MAX,
-						   static_cast<float>(255) / ccColor::MAX);
-		m_program->setUniformValue("materialAmbient", color.x, color.y, color.z, 1);
-
-		// prepare translation, rotation and scaling
-		glFunc->glPushMatrix(); // save the current matrix
-
-		// rotation and translation from the ellipsoid fitting
-		glFunc->glMultMatrixf(matrixFromFit.data());
-		// scale from the ellipsoid fitting
-		glFunc->glScalef(0.6154, 0.5055, 0.3647);
-
-		// get matrices
-		glFunc->glGetFloatv(GL_PROJECTION_MATRIX, projection.data());
-		glFunc->glGetFloatv(GL_MODELVIEW_MATRIX, modelView.data());
-		m_program->setUniformValue("modelViewProjectionMatrix", projection * modelView);
-
-		// draw triangles
-		m_program->setUniformValue("drawLines", 0);
-		glFunc->glEnable(GL_POLYGON_OFFSET_FILL);
-		glFunc->glPolygonOffset(1.0, 1.0f); // move polygon backward
-		glFunc->glDrawElements(GL_TRIANGLES, (unsigned int) indices.size(), GL_UNSIGNED_INT, indices.data());
-		glFunc->glDisable(GL_POLYGON_OFFSET_FILL);
-
-		// draw lines
-		m_program->setUniformValue("drawLines", 1);
-		glFunc->glDisable(GL_LIGHTING);
-		glFunc->glDisable(GL_TEXTURE_2D);
-		glFunc->glDrawElements(GL_LINES, (unsigned int) lineIndices.size(), GL_UNSIGNED_INT, lineIndices.data());
-
-		glFunc->glPopMatrix();
 	}
 
 	m_program->disableAttributeArray("vertexPosition");

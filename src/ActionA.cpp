@@ -361,7 +361,7 @@ Eigen::ArrayXXd G3PointAction::computeMeanAngleBetweenNormalsAtBorders()
 	Eigen::ArrayXi temp = m_kNN - (labels_of_neighbors == duplicated_labels).cast<int>().rowwise().sum();
 	auto condition = ((temp >= m_kNN / 4) && (m_ndon == 0));
 	Eigen::ArrayXi indborder(condition.count());
-	// std::cout << "condition.count() " << condition.count() << std::endl;
+
 	int l = 0;
 	for (int c = 0; c < condition.size(); c++)
 	{
@@ -371,9 +371,6 @@ Eigen::ArrayXXd G3PointAction::computeMeanAngleBetweenNormalsAtBorders()
 			l++;
 		}
 	}
-
-	// std::cout << "indborder" << std::endl;
-	// std::cout << indborder.block(0, 0, 10, 1) << std::endl;
 
 	// Compute the angle of the normal vector between the neighbours of each grain / label
 	size_t nlabels = m_stacks.size();
@@ -391,11 +388,6 @@ Eigen::ArrayXXd G3PointAction::computeMeanAngleBetweenNormalsAtBorders()
 			// Take the normals vector for i and j
 			Eigen::Vector3d N2(m_normals(j, Eigen::all)); // normal at j
 			double angle = angleRot2VecMat(N1, N2);
-			if (i < 27)
-			{
-				// std::cout << "INDBORDER i " << i << " j " "" << j << std::endl;
-				// std::cout << angle << std::endl;
-			}
 			if ((m_labels(i) != -1) && (m_labels(j) != -1))  // points which belong to the discarded grains have the -1 label
 			{
 				if ((m_labels(i) > A.rows()) || (m_labels(j) > A.rows()))
@@ -409,18 +401,10 @@ Eigen::ArrayXXd G3PointAction::computeMeanAngleBetweenNormalsAtBorders()
 				}
 			}
 		}
-		if (i < 31)
-		{
-			// std::cout << "INDBORDER i " << i << std::endl;
-			// std::cout << A.block(0, 0, 10, 10) << std::endl;
-		}
 	}
 
-	// std::cout << "A" << std::endl;
-	// std::cout << A.block(0, 0, 10, 10) << std::endl;
-
 	/// compute the means
-for (int r = 0; r < nlabels; r++)
+	for (int r = 0; r < nlabels; r++)
 	{
 		for(int c = 0; c < nlabels; c++)
 		{
@@ -430,9 +414,6 @@ for (int r = 0; r < nlabels; r++)
 			}
 		}
 	}
-
-	// std::cout << "A mean" << std::endl;
-	// std::cout << A.block(0, 0, 10, 10) << std::endl;
 
 	return Aangle;
 }
@@ -1443,11 +1424,6 @@ bool G3PointAction::computeNormalsWithOpen3D()
 	for (unsigned j = 0; j < theNormsCodes.currentSize(); j++)
 	{
 		m_cloud->setPointNormalIndex(j, theNormsCodes.getValue(j));
-	}
-
-	for (int i = 0; i < 10; i++)
-	{
-		std::cout << m_cloud->getNormal(i)->x << " " << m_cloud->getNormal(i)->y << " " << m_cloud->getNormal(i)->z << std::endl;
 	}
 
 	for (int i = 0; i < pointCount; i++)
