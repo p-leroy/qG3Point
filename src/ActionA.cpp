@@ -1,42 +1,48 @@
 #include "ActionA.h"
 
-#include <DgmOctree.h>
-
+// CCPluginAPI
 #include <ccMainAppInterface.h>
-#include <ccProgressDialog.h>
 #include <ccQtHelpers.h>
+
+// qCC_db
+#include <ccPointCloud.h>
+#include <ccProgressDialog.h>
 #include <ccHObject.h>
 #include <ccPointCloud.h>
 #include <ccScalarField.h>
-#include <CCGeom.h>
 #include <ccNormalVectors.h>
+
+// CCCoreLib
+#include <CCGeom.h>
+#include <DgmOctree.h>
+
+// qCC_glWindow
 #include <ccGLWindowInterface.h>
 
+// Qt
 #include <QMainWindow>
 #include <QCoreApplication>
 #include <QThreadPool>
 #include <QtConcurrent>
 #include <QApplication>
+#include <QPushButton>
+#include <QOpenGLShaderProgram>
 
 #include <algorithm>
 #include <iostream>
 #include <fstream>
 #include <random>
 
-#include <G3PointDialog.h>
-#include <QPushButton>
-#include <QOpenGLShaderProgram>
-
+// Open3D
 #include <open3d/geometry/PointCloud.h>
 
+// Eigen
 #include <Eigen/Geometry>
 
 #include <math.h>
-
 #include <set>
 
-#include <ccPointCloud.h>
-
+#include <G3PointDialog.h>
 #include <qG3PointDisclaimer.h>
 
 namespace G3Point
@@ -629,7 +635,7 @@ bool G3PointAction::merge(XXb& condition)
 	int countNewLabels = 0;
 	size_t nlabels = m_stacks.size();
 
-	if (condition.rows() != m_stacks.size()) // check that condition is validd
+	if (condition.rows() != m_stacks.size()) // check that condition is valid
 	{
 		ccLog::Error("[G3PointAction::merge] the shape of the condition (" + QString::number(condition.rows())
 					 + ", " + QString::number(condition.cols())
@@ -658,7 +664,6 @@ bool G3PointAction::merge(XXb& condition)
 			// shall we merge otherLabel with label?
 			if (!condition(label, otherLabel))
 			{
-
 				std::vector<int>& labelStack = newStacks[newLabels(label)];
 
 				if (newLabels(otherLabel) != -1) // the other label has already been merged
@@ -714,6 +719,7 @@ bool G3PointAction::merge(XXb& condition)
 	if (!processNewStacks(newStacks, m_cloud->size()))
 	{
 		ccLog::Error("[G3PointAction::merge] processing newStacks failed");
+		return false;
 	}
 
 	return true;
@@ -833,10 +839,8 @@ bool G3PointAction::cluster()
 	// merge labels if sinks are
 	// => close to each other (Dist == 1)
 	// => neighbours (Nneigh == 1)
-	// => normals are similar
-
-	int start = 15;
-	int size = 5;
+	// => normals are similar (A < m_maxAngle1)
+	// => A is not NaN
 
 	if (!checkStacks(m_stacks, m_cloud->size()))
 	{
@@ -848,13 +852,6 @@ bool G3PointAction::cluster()
 	XXb symmetrical_condition = (condition == condition.transpose()).select(condition, true);
 	symmetrical_condition.count();
 	condition = symmetrical_condition;
-
-	// <SAVE>
-//	eigenArrayToFile("C:/dev/python/g3point_python/data/debug/Dist.csv", Dist);
-//	eigenArrayToFile("C:/dev/python/g3point_python/data/debug/Nneigh.csv", Nneigh);
-//	eigenArrayToFile("C:/dev/python/g3point_python/data/debug/A.csv", A);
-//	eigenArrayToFile("C:/dev/python/g3point_python/data/debug/symmetrical_condition.csv", symmetrical_condition);
-//	 </SAVE>
 
 	std::vector<std::vector<int>> newStacks;
 	Eigen::ArrayXi newLabels = Eigen::ArrayXi::Ones(m_labels.size()) * (-1);
@@ -926,18 +923,8 @@ bool G3PointAction::cluster()
 			newStacksWithoutEmpty.push_back(stack);
 		}
 	}
-	std::cout << "m_stacks.size() " << m_stacks.size()
-			  << " newStacks.size() " << newStacks.size()
-			  << " newStacksWithoutEmpty.size() " << newStacksWithoutEmpty.size() << std::endl;
 
 	newStacks = newStacksWithoutEmpty;
-
-	std::cout << "(a) m_stacks.size() " << m_stacks.size() << std::endl;
-	std::cout << "(a) m_labels.size() " << m_labels.size() << std::endl;
-	for (int k = 0; k < 10; k++)
-	{
-		std::cout << m_stacks[k].size() << " " << newStacks[k].size() << std::endl;
-	}
 
 	ccLog::Print("[G3PointAction::merge] keep " + QString::number(newStacks.size())
 				 + "/" + QString::number(m_stacks.size()) + " labels ("
@@ -948,9 +935,6 @@ bool G3PointAction::cluster()
 		ccLog::Error("[G3PointAction::cluster] new stacks are not valid");
 		return false;
 	}
-
-	std::cout << "(b) m_stacks.size() " << m_stacks.size() << std::endl;
-	std::cout << "(b) m_labels.size() " << m_labels.size() << std::endl;
 
 	return true;
 }
@@ -1002,17 +986,10 @@ bool G3PointAction::cleanLabels()
 	{
 		ccLog::Print("[cleanLabels] merge points considering the normals at the border");
 		Eigen::ArrayXXd A = computeMeanAngleBetweenNormalsAtBorders();
-		size_t nGrains = m_stacks.size();
-		XXb condition = (A > m_maxAngle2) || (A != A)  || (Eigen::MatrixXi::Identity(nGrains, nGrains).array() == 1); // add true on the diagonal (important for the if hereafter)
+		XXb condition = (A > m_maxAngle2) || (A != A); // add true on the diagonal (important for the if hereafter)
 		XXb symmetrical_condition = (condition == condition.transpose()).select(condition, true);
-		if (condition.all())
-		{
-			ccLog::Print("[cleanLabels] nothing to merge, continue");
-		}
-		else
-		{
-			merge(condition);
-		}
+
+		merge(symmetrical_condition);
 
 		QApplication::processEvents();
 	}
