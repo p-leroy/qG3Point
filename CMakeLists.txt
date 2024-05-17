@@ -11,7 +11,7 @@ if ( PLUGIN_G3POINT )
 	 
 	AddPlugin( NAME ${PROJECT_NAME} )
 
-set(QG3POINT_PLUGIN_VERSION "0.1")
+set(QG3POINT_PLUGIN_VERSION "0.2")
 
 	add_subdirectory( include )
 	add_subdirectory( src )
@@ -30,8 +30,10 @@ set(QG3POINT_PLUGIN_VERSION "0.1")
 	find_package( Open3D REQUIRED )
 	target_link_libraries( ${PROJECT_NAME} Open3D::Open3D )
 	message( "Open3D_DIR ${Open3D_DIR}" )
-	set( OPENCV_DEP_DLL_FILES ${Open3D_DIR}/../bin/Open3D.dll )
-	copy_files( "${OPENCV_DEP_DLL_FILES}" "${CLOUDCOMPARE_DEST_FOLDER}" ) #mind the quotes!
+	set( OPENCV_DEP_DLL_FILES ${Open3D_DIR}/../bin/Open3D.dll)
+	copy_files( "${OPENCV_DEP_DLL_FILES}" "${CLOUDCOMPARE_DEST_FOLDER}" 1) #mind the quotes!
+	copy_files( "${CMAKE_CURRENT_SOURCE_DIR}/shaders/DrawGrains.vs" "${CLOUDCOMPARE_DEST_FOLDER}/shaders/G3Point" 1) #mind the quotes!
+	copy_files( "${CMAKE_CURRENT_SOURCE_DIR}/shaders/DrawGrains.fs" "${CLOUDCOMPARE_DEST_FOLDER}/shaders/G3Point" 1) #mind the quotes!
 
 	#================
 	# git commit hash

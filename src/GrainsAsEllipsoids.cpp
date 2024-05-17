@@ -1,8 +1,11 @@
 #include "GrainsAsEllipsoids.h"
 
+/// qCC_db
 #include <ccPointCloud.h>
 #include <ccGLMatrix.h>
 
+#include <QCoreApplication>
+#include <QDir>
 #include <QOpenGLShaderProgram>
 
 #include <iostream>
@@ -17,7 +20,7 @@ GrainsAsEllipsoids::GrainsAsEllipsoids(ccPointCloud *cloud, ccMainAppInterface *
 	, m_app(app)
 	, m_stacks(stacks)
 {
-	setShaderPath("C:/dev/CloudCompare/plugins/private/qG3POINT/shaders");
+	setShaderPath();
 	setGrainColorsTable(colors);
 
 	m_center.resize(m_stacks.size());
@@ -53,9 +56,10 @@ GrainsAsEllipsoids::GrainsAsEllipsoids(ccPointCloud *cloud, ccMainAppInterface *
 	m_ccBBoxAll.setValidity(true);
 }
 
-void GrainsAsEllipsoids::setShaderPath(const QString& path)
+void GrainsAsEllipsoids::setShaderPath()
 {
-	m_shaderPath = path;
+	QDir appDir = QCoreApplication::applicationDirPath();
+	m_shaderPath = (appDir.absolutePath() + "/shaders/G3Point");
 }
 
 void GrainsAsEllipsoids::setLocalMaximumIndexes(const Eigen::ArrayXi &localMaximumIndexes)

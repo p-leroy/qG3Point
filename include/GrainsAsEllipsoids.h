@@ -27,7 +27,7 @@ public:
 	GrainsAsEllipsoids(ccPointCloud *cloud, ccMainAppInterface* app, const std::vector<std::vector<int> >& stacks, const RGBAColorsTableType& colors);
 
 	//! Set the path for shaders
-	void setShaderPath(const QString &path);
+	void setShaderPath();
 
 	void setLocalMaximumIndexes(const Eigen::ArrayXi &localMaximumIndexes);
 
