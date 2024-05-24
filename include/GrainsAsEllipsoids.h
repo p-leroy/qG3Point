@@ -1,19 +1,26 @@
 #ifndef GRAINSASELLIPSOIDS_H
 #define GRAINSASELLIPSOIDS_H
 
-#include "Eigen/Dense"
+// qcc_glWindow
+#include <ccGLWindowInterface.h>
+
+// CCPluginAPI
+#include <ccMainAppInterface.h>
+
+// qCC_db
 #include "ccAdvancedTypes.h"
+#include <ccColorTypes.h>
+#include <ccCustomObject.h>
+#include <ccHObject.h>
+#include <ccSerializableObject.h>
 
 #include <QObject>
 #include <QOpenGLShaderProgram>
 
-#include <ccGLWindowInterface.h>
-#include <ccHObject.h>
-#include <ccCustomObject.h>
-#include <ccMainAppInterface.h>
-#include <ccColorTypes.h>
-
 #include <set>
+
+// Eigen
+#include "Eigen/Dense"
 
 class ccPointCloud;
 
@@ -23,6 +30,8 @@ class GrainsAsEllipsoids : public QObject, public ccCustomHObject
 
 public:
 	typedef Eigen::Array<bool, Eigen::Dynamic, Eigen::Dynamic> Xb;
+
+	GrainsAsEllipsoids() { }
 
 	GrainsAsEllipsoids(ccPointCloud *cloud, ccMainAppInterface* app, const std::vector<std::vector<int> >& stacks, const RGBAColorsTableType& colors);
 
@@ -103,6 +112,10 @@ public:
 	void draw(CC_DRAW_CONTEXT& context) override;
 
 	ccBBox getOwnBB(bool withGLFeatures = false) override;
+
+	bool toFile(QFile& out, short dataVersion) const override;
+
+	bool fromFile(QFile& in, short dataVersion, int flags, LoadedIDMap& oldToNewIDMap) override;
 
 	ccPointCloud* m_cloud;
 	ccMainAppInterface* m_app;

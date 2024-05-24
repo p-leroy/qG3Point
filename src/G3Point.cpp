@@ -37,6 +37,20 @@
 
 #include "ActionA.h"
 
+ccHObject* G3PointFactory::buildObject(const QString& metaName)
+{
+	if (metaName == "GrainsAsEllipsoids")
+	{
+		ccLog::Warning("[G3PointFactory::buildObject] build a GrainsAsEllipsoids object");
+		return new GrainsAsEllipsoids();
+	}
+	else
+	{
+		ccLog::Warning("[G3PointFactory::buildObject] you are asking for the building of an unknown object: " + metaName);
+		return nullptr;
+	}
+}
+
 // Default constructor:
 //	- pass the Qt resource path to the info.json file (from <yourPluginName>.qrc file) 
 //  - constructor should mainly be used to initialize actions and other members
@@ -45,6 +59,9 @@ G3PointPlugin::G3PointPlugin( QObject *parent )
 	, ccStdPluginInterface( ":/CC/plugin/G3PointPlugin/info.json" )
 	, m_action( nullptr )
 {
+	ccExternalFactory::Container::Shared container = ccExternalFactory::Container::GetUniqueInstance();
+	G3PointFactory* g3PointFactory = new G3PointFactory("G3PointFactory");
+	container->addFactory(g3PointFactory);
 }
 
 // This method should enable or disable your plugin actions

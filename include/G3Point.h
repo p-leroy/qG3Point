@@ -17,26 +17,21 @@
 
 #pragma once
 
+/// CCPluginStub
 #include "ccStdPluginInterface.h"
 
-//! Example qCC plugin
-/** Replace 'G3PointPlugin' by your own plugin class name throughout and then
-	check 'G3PointPlugin.cpp' for more directions.
+// qCC_db
+#include <ccExternalFactory.h>
 
-	Each plugin requires an info.json file to provide information about itself -
-	the name, authors, maintainers, icon, etc..
+class G3PointFactory : public ccExternalFactory
+{
+public:
 
-	The one method you are required to implement is 'getActions'. This should
-	return all actions (QAction objects) for the plugin. CloudCompare will
-	automatically add these with their icons in the plugin toolbar and to the
-	plugin menu. If	your plugin returns	several actions, CC will create a
-	dedicated toolbar and a	sub-menu for your plugin. You are responsible for
-	connecting these actions to	methods in your plugin.
+	G3PointFactory(QString factoryName) : ccExternalFactory(factoryName) { }
 
-	Use the ccStdPluginInterface::m_app variable for access to most of the CC
-	components (database, 3D views, console, etc.) - see the ccMainAppInterface
-	class in ccMainAppInterface.h.
-**/
+	ccHObject* buildObject(const QString& metaName) override;
+};
+
 class G3PointPlugin : public QObject, public ccStdPluginInterface
 {
 	Q_OBJECT

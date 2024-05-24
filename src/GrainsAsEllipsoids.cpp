@@ -3,6 +3,7 @@
 /// qCC_db
 #include <ccPointCloud.h>
 #include <ccGLMatrix.h>
+#include <ccSerializableObject.h>
 
 #include <QCoreApplication>
 #include <QDir>
@@ -20,6 +21,9 @@ GrainsAsEllipsoids::GrainsAsEllipsoids(ccPointCloud *cloud, ccMainAppInterface *
 	, m_app(app)
 	, m_stacks(stacks)
 {
+	this->setMetaData("class_name", "GrainsAsEllipsoids");
+	this->setMetaData("plugin_name", "G3PointPlugin");
+
 	setShaderPath();
 	setGrainColorsTable(colors);
 
@@ -989,4 +993,35 @@ ccBBox GrainsAsEllipsoids::getOwnBB(bool withGLFeatures)
 	return m_ccBBox;
 }
 
+bool GrainsAsEllipsoids::toFile(QFile& out, short dataVersion) const
+{
+	ccLog::Print("[GrainsAsEllipsoids::toFile]");
+	ccSerializationHelper::GenericArrayToFile<Eigen::Array3f, 1, float>(m_center, out);
+	ccSerializationHelper::GenericArrayToFile<Eigen::Array3f, 1, float>(m_radii, out);
+	ccSerializationHelper::GenericArrayToFile<Eigen::Matrix3f, 1, float>(m_rotationMatrix, out);
+	return true;
+}
 
+bool GrainsAsEllipsoids::fromFile(QFile& in, short dataVersion, int flags, LoadedIDMap& oldToNewIDMap)
+{
+	ccLog::Print("[GrainsAsEllipsoids::fromFile");
+	ccSerializationHelper::GenericArrayFromFile<Eigen::Array3f, 1, float>(m_center, in, dataVersion);
+	ccSerializationHelper::GenericArrayFromFile<Eigen::Array3f, 1, float>(m_radii, in, dataVersion);
+	ccSerializationHelper::GenericArrayFromFile<Eigen::Matrix3f, 1, float>(m_rotationMatrix, in, dataVersion);
+
+	m_ccBBoxAll.setValidity(false);
+	m_ccBBoxAll.clear();
+
+	// recompute bounding box
+	for (int idx = 0; idx < m_center.size(); idx++)
+	{
+			float maxRadius = m_radii[idx].maxCoeff();
+			CCVector3 center(m_center[idx](0), m_center[idx](1), m_center[idx](2));
+			m_ccBBoxAll.add(CCVector3(center.x + maxRadius, center.y + maxRadius, center.z + maxRadius));
+			m_ccBBoxAll.add(CCVector3(center.x - maxRadius, center.y - maxRadius, center.z - maxRadius));
+	}
+
+	m_ccBBoxAll.setValidity(true);
+
+	return true;
+}
