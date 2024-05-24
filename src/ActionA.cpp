@@ -50,10 +50,11 @@ namespace G3Point
 G3PointAction* G3PointAction::s_g3PointAction = nullptr;
 
 G3PointAction::G3PointAction(ccPointCloud *cloud, ccMainAppInterface *app)
-	: m_cloud(cloud)
-	, m_app(app)
+	: m_app(app)
 	, m_dlg(nullptr)
 {
+	assert(cloud);
+	setCloud(cloud);
 }
 
 G3PointAction::~G3PointAction()
@@ -504,6 +505,7 @@ bool G3PointAction::updateLabelsAndColors()
 		if (sfIdx == -1)
 		{
 			ccLog::Error("[G3PointAction::update_labels_and_colors] impossible to create scalar field g3point_label");
+			return false;
 		}
 	}
 	CCCoreLib::ScalarField* g3point_label = m_cloud->getScalarField(sfIdx);
@@ -941,10 +943,15 @@ bool G3PointAction::cluster()
 
 void G3PointAction::fit()
 {
+	if (m_stacks.empty())
+	{
+		ccLog::Warning("[G3PointAction::fit] stacks are empty, nothing to fit");
+		return;
+	}
+
 	// plot display grains as ellipsoids
 	m_grainColors.reset(new RGBAColorsTableType(getRandomColors(m_localMaximumIndexes.size())));
 	m_grainsAsEllipsoids = new GrainsAsEllipsoids(m_cloud, m_app, m_stacks, *m_grainColors);
-	m_grainsAsEllipsoids->setLocalMaximumIndexes(m_localMaximumIndexes);
 	m_grainsAsEllipsoids->setName("grains as ellipsoids");
 
 	// add connections with the dialog
@@ -1416,6 +1423,7 @@ bool G3PointAction::computeNormalsWithOpen3D()
 bool G3PointAction::queryNeighbors(ccPointCloud* cloud, ccMainAppInterface* appInterface, bool useParallelStrategy)
 {
 	std::cout << "[query_neighbor]" << std::endl;
+	m_kNN = m_dlg->getkNN();
 	QString errorStr;
 
 	ccProgressDialog progressDlg(true, appInterface->getMainWindow());
@@ -1576,8 +1584,6 @@ void G3PointAction::getBorders()
 
 void G3PointAction::init()
 {
-	m_kNN = m_dlg->getkNN();
-
 	// initialize the matrices which will contain the results
 	m_neighborsIndexes = Eigen::ArrayXXi::Zero(m_cloud->size(), m_kNN);
 	m_neighborsDistances = Eigen::ArrayXXd::Zero(m_cloud->size(), m_kNN);
@@ -1641,9 +1647,72 @@ void G3PointAction::clean()
 	m_octree.clear();
 }
 
-void G3PointAction::setCloud(ccPointCloud *cloud)
+bool G3PointAction::setCloud(ccPointCloud *cloud)
 {
 	m_cloud = cloud;
+
+	// at this step, it is possible to initialize the stacks if the cloud has a g3point_label scalar field
+
+	int sfIdx = m_cloud->getScalarFieldIndexByName("g3point_label");
+	if (sfIdx != -1)
+	{
+		init();
+
+		// copy the g3point_label scalar field
+		int sfIdxBackup = m_cloud->getScalarFieldIndexByName("g3point_label_backup");
+		if (sfIdxBackup == -1) // the scalar field g3point_label_backup does not exist, create it
+		{
+			sfIdxBackup = m_cloud->addScalarField("g3point_label_backup");
+			if (sfIdxBackup == -1)
+			{
+				ccLog::Error("[G3PointAction::setCloud] impossible to create scalar field g3point_label_backup");
+				return false;
+			}
+			else
+			{
+				ccLog::Warning("[G3PointAction::setCloud] duplicate existing scalar field g3point_label => g3point_label_backup");
+			}
+		}
+
+		CCCoreLib::ScalarField* g3PointLabelSF = m_cloud->getScalarField(sfIdx);
+		CCCoreLib::ScalarField* g3PointLabelBackupSF = m_cloud->getScalarField(sfIdxBackup);
+
+		// get the set of labels
+		std::set<int> labels;
+		for (unsigned int index = 0; index < m_cloud->size(); index++)
+		{
+			labels.insert(g3PointLabelSF->getValue(index));
+		}
+
+		// build stacks from g3point_index
+		std::map<ScalarType, std::vector<int>> labelStackMap;
+		int nPointsInGrains = 0;
+		for (unsigned int index = 0; index < m_cloud->size(); index++)
+		{
+			ScalarType label = g3PointLabelSF->getValue(index);
+			g3PointLabelBackupSF->setValue(index, label); // save the originale G3Point label
+			if (label != -1)  // -1 is a generic index corresponding to all points which do not belong to valid grains
+			{
+				labelStackMap[label].push_back(index);
+				nPointsInGrains++;
+			}
+		}
+
+		// initialize m_stacks
+		std::vector<std::vector<int>> newStacks;
+		for (const auto& item : labelStackMap)
+		{
+			newStacks.push_back(item.second);
+		}
+
+		ccLog::Print("[G3PointAction::setCloud] g3point_label available, found "
+					 + QString::number(nPointsInGrains) + "/" + QString::number(cloud->size())
+					 + " points belonging to " + QString::number(newStacks.size()) + " grains");
+
+		processNewStacks(newStacks, nPointsInGrains);
+	}
+
+	return true;
 }
 
 void G3PointAction::createAction(ccMainAppInterface *appInterface)

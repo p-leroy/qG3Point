@@ -11,7 +11,7 @@ if ( PLUGIN_G3POINT )
 	 
 	AddPlugin( NAME ${PROJECT_NAME} )
 
-set(QG3POINT_PLUGIN_VERSION "0.2")
+set(QG3POINT_PLUGIN_VERSION "0.2+")
 
 	add_subdirectory( include )
 	add_subdirectory( src )

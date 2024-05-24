@@ -106,14 +106,12 @@ public:
 
 	ccPointCloud* m_cloud;
 	ccMainAppInterface* m_app;
-	Eigen::ArrayXi m_localMaximumIndexes;
 	std::vector<std::vector<int>> m_stacks;
 	std::vector<CCVector3f> m_grainColors;
 	ccBBox m_ccBBoxOnlyOne;
 	ccBBox m_ccBBoxAll;
 	ccBBox m_ccBBox;
 
-	std::vector<CCVector3f> m_ellipsoidInstance;
 	Eigen::ArrayX3f ellipsoidInstance;
 
 	QSharedPointer<QOpenGLShaderProgram> m_program;

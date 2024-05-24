@@ -62,11 +62,6 @@ void GrainsAsEllipsoids::setShaderPath()
 	m_shaderPath = (appDir.absolutePath() + "/shaders/G3Point");
 }
 
-void GrainsAsEllipsoids::setLocalMaximumIndexes(const Eigen::ArrayXi &localMaximumIndexes)
-{
-	m_localMaximumIndexes = localMaximumIndexes;
-}
-
 void GrainsAsEllipsoids::setGrainColorsTable(const RGBAColorsTableType& colorTable)
 {
 	m_grainColors.resize(colorTable.size());
@@ -774,25 +769,6 @@ bool GrainsAsEllipsoids::initProgram(QOpenGLContext* context)
 			return false;
 		}
 
-		// initialize the ellipsoid instance
-		m_ellipsoidInstance.resize(401);
-		float stepTheta = M_PI / 21;
-		float stepPhi = 2 * M_PI / 21;
-		int count = 0;
-		CCVector3f center = *m_cloud->getPoint(m_localMaximumIndexes[0]);
-		m_ellipsoidInstance[count++] = CCVector3f(0, 0, 1);
-		for (int thetaI = 1; thetaI < 20; thetaI++)
-		{
-			for (int phiI = 0; phiI < 21; phiI++)
-			{
-				m_ellipsoidInstance[count++] = CCVector3f(center.x + sin(thetaI * stepTheta) * cos(phiI * stepPhi) * 1,
-														  center.y + sin(thetaI * stepTheta) * sin(phiI * stepPhi) * 1,
-														  center.z + cos(thetaI * stepTheta) * 1);
-			}
-		}
-		m_ellipsoidInstance[count++] = CCVector3f(0, 0, -1);
-
-		// initialize sphere
 		initSphereVertices();
 		initSphereIndexes();
 	}
