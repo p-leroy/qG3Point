@@ -10,6 +10,9 @@
 #include <QOpenGLShaderProgram>
 
 #include <iostream>
+#include <fstream>
+
+#include <ActionA.h>
 
 // from GeometricTools/GTE
 // #include <Mathematics/DistPointHyperellipsoid.h>
@@ -22,7 +25,7 @@ GrainsAsEllipsoids::GrainsAsEllipsoids(ccPointCloud *cloud, ccMainAppInterface *
 	, m_stacks(stacks)
 {
 	this->setMetaData("class_name", "GrainsAsEllipsoids");
-	this->setMetaData("plugin_name", "G3PointPlugin");
+	this->setMetaData("plugin_name", "G3Point");
 
 	setShaderPath();
 	setGrainColorsTable(colors);
@@ -993,35 +996,234 @@ ccBBox GrainsAsEllipsoids::getOwnBB(bool withGLFeatures)
 	return m_ccBBox;
 }
 
-bool GrainsAsEllipsoids::toFile(QFile& out, short dataVersion) const
+/// template <class Type, int N, class ComponentType> static
+///          <Eigen::Array3f, 1, float>
+bool genericArrayToFile(const std::vector<Eigen::Array3f>& data, QFile& out)
 {
-	ccLog::Print("[GrainsAsEllipsoids::toFile]");
-	ccSerializationHelper::GenericArrayToFile<Eigen::Array3f, 1, float>(m_center, out);
-	ccSerializationHelper::GenericArrayToFile<Eigen::Array3f, 1, float>(m_radii, out);
-	ccSerializationHelper::GenericArrayToFile<Eigen::Matrix3f, 1, float>(m_rotationMatrix, out);
+	assert(out.isOpen() && (out.openMode() & QIODevice::WriteOnly));
+
+	//removed to allow saving empty clouds
+	//if (data.empty())
+	//{
+	//	return ccSerializableObject::MemoryError();
+	//}
+
+	int N = 1;
+
+	//component count (dataVersion>=20)
+	::uint8_t componentCount = static_cast<::uint8_t>(N);
+	if (out.write((const char*)&componentCount, 1) < 0)
+		return ccSerializableObject::WriteError();
+
+	//element count = array size (dataVersion>=20)
+	::uint32_t elementCount = static_cast<::uint32_t>(data.size());
+	if (out.write((const char*)&elementCount, 4) < 0)
+		return ccSerializableObject::WriteError();
+
+	//array data (dataVersion>=20)
+	{
+		//DGM: do it by chunks, in case it's too big to be processed by the system
+		const char* _data = (const char*)data.data();
+		qint64 byteCount = static_cast<qint64>(elementCount);
+		byteCount *= sizeof(Eigen::Array3f);
+		while (byteCount != 0)
+		{
+			static const qint64 s_maxByteSaveCount = (1 << 26); //64 Mb each time
+			qint64 saveCount = std::min(byteCount, s_maxByteSaveCount);
+			if (out.write(_data, saveCount) < 0)
+				return ccSerializableObject::WriteError();
+			_data += saveCount;
+			byteCount -= saveCount;
+		}
+	}
 	return true;
 }
 
-bool GrainsAsEllipsoids::fromFile(QFile& in, short dataVersion, int flags, LoadedIDMap& oldToNewIDMap)
+bool readArrayHeader(QFile& in,
+							short dataVersion,
+							::uint8_t &componentCount,
+							::uint32_t &elementCount)
 {
-	ccLog::Print("[GrainsAsEllipsoids::fromFile");
-	ccSerializationHelper::GenericArrayFromFile<Eigen::Array3f, 1, float>(m_center, in, dataVersion);
-	ccSerializationHelper::GenericArrayFromFile<Eigen::Array3f, 1, float>(m_radii, in, dataVersion);
-	ccSerializationHelper::GenericArrayFromFile<Eigen::Matrix3f, 1, float>(m_rotationMatrix, in, dataVersion);
+	assert(in.isOpen() && (in.openMode() & QIODevice::ReadOnly));
 
-	m_ccBBoxAll.setValidity(false);
-	m_ccBBoxAll.clear();
+	if (dataVersion < 20)
+		return ccSerializableObject::CorruptError();
 
-	// recompute bounding box
-	for (int idx = 0; idx < m_center.size(); idx++)
+	//component count (dataVersion>=20)
+	if (in.read((char*)&componentCount, 1) < 0)
+		return ccSerializableObject::ReadError();
+
+	//element count = array size (dataVersion>=20)
+	if (in.read((char*)&elementCount, 4) < 0)
+		return ccSerializableObject::ReadError();
+
+	return true;
+}
+
+// template <class Type, int N, class ComponentType> static
+//          <Eigen::Array3f, 1, float>
+bool genericArrayFromFile(std::vector<Eigen::Array3f>& data, QFile& in, short dataVersion)
+{
+	int N = 1;
+
+	::uint8_t componentCount = 0;
+	::uint32_t elementCount = 0;
+	if (!readArrayHeader(in, dataVersion, componentCount, elementCount))
 	{
-			float maxRadius = m_radii[idx].maxCoeff();
-			CCVector3 center(m_center[idx](0), m_center[idx](1), m_center[idx](2));
-			m_ccBBoxAll.add(CCVector3(center.x + maxRadius, center.y + maxRadius, center.z + maxRadius));
-			m_ccBBoxAll.add(CCVector3(center.x - maxRadius, center.y - maxRadius, center.z - maxRadius));
+		return false;
+	}
+	if (componentCount != N)
+	{
+		return ccSerializableObject::CorruptError();
 	}
 
-	m_ccBBoxAll.setValidity(true);
+	if (elementCount)
+	{
+		//try to allocate memory
+		try
+		{
+			data.resize(elementCount);
+		}
+		catch (const std::bad_alloc&)
+		{
+			return ccSerializableObject::MemoryError();
+		}
+
+		//array data (dataVersion>=20)
+		{
+			//Apparently Qt and/or Windows don't like to read too many bytes in a row...
+			static const qint64 MaxElementPerChunk = (static_cast<qint64>(1) << 24);
+			assert(sizeof(ComponentType) * N == sizeof(Type));
+			qint64 byteCount = static_cast<qint64>(data.size()) * (sizeof(float) * N);
+			char* dest = (char*)data.data();
+			while (byteCount > 0)
+			{
+				qint64 chunkSize = std::min(MaxElementPerChunk, byteCount);
+				if (in.read(dest, chunkSize) < 0)
+				{
+					return ccSerializableObject::ReadError();
+				}
+				byteCount -= chunkSize;
+				dest += chunkSize;
+			}
+		}
+	}
+
+	return true;
+}
+
+template<typename T>
+bool stdVectorToFile(QString name, std::vector<T> vector)
+{
+	std::ofstream file(name.toLatin1());
+	int elementSize = vector[0].size();
+	for (int i = 0; i < vector.size(); i++)
+	{
+		for (int j = 0; j < elementSize; j++)
+		{
+			file << vector[i][j] << ", ";
+		}
+		file << std::endl;
+	}
+	return true;
+}
+
+bool rotationMatrixToFile(QString name, std::vector<Eigen::Matrix3f> rotationMatrix)
+{
+	std::ofstream file(name.toLatin1());
+	int elementSize = rotationMatrix[0].size();
+	for (int i = 0; i < rotationMatrix.size(); i++)
+	{
+		for (int j = 0; j < elementSize; j++)
+		{
+			file << rotationMatrix[i](j) << ", ";
+		}
+		file << std::endl;
+	}
+	return true;
+}
+
+bool GrainsAsEllipsoids::toFile_MeOnly(QFile& out, short dataVersion) const
+{
+	ccLog::Print("[GrainsAsEllipsoids::toFile]");
+
+	if (!ccHObject::toFile_MeOnly(out, dataVersion))
+	{
+		return false;
+	}
+
+	uint32_t count = (uint32_t) 42;
+	if (out.write((const char*)&count, 4) < 0)
+		return WriteError();
+
+
+	ccSerializationHelper::GenericArrayToFile<Eigen::Array3f, sizeof(Eigen::Array3f), float>(m_center, out);
+	ccSerializationHelper::GenericArrayToFile<Eigen::Array3f, sizeof(Eigen::Array3f), float>(m_radii, out);
+	ccSerializationHelper::GenericArrayToFile<Eigen::Matrix3f, sizeof(Eigen::Matrix3f), float>(m_rotationMatrix, out);
+
+	// genericArrayToFile(m_center, out);
+	// genericArrayToFile(m_radii, out);
+
+	stdVectorToFile("C:/DATA/qG3Point/m_center.csv", m_center);
+	stdVectorToFile("C:/DATA/qG3Point/m_radii.csv", m_radii);
+	rotationMatrixToFile("C:/DATA/qG3Point/m_rotationMatrix.csv", m_rotationMatrix);
+
+	std::cout << "dataVersion " << dataVersion << std::endl;
+	std::cout << "sizeof(Eigen::Array3f) " << sizeof(Eigen::Array3f) << std::endl;
+	std::cout << "sizeof(Eigen::Matrix3f) " << sizeof(Eigen::Matrix3f) << std::endl;
+	std::cout << "m_center.size() " << m_center.size() << std::endl;
+	std::cout << "m_radii.size() " << m_radii.size() << std::endl;
+	std::cout << "m_rotationMatrix " << m_rotationMatrix.size() << std::endl;
+
+	return true;
+}
+
+bool GrainsAsEllipsoids::fromFile_MeOnly(QFile& in, short dataVersion, int flags, LoadedIDMap& oldToNewIDMap)
+{
+	ccLog::Print("[GrainsAsEllipsoids::fromFile");
+
+	if (!ccHObject::fromFile_MeOnly(in, dataVersion, flags, oldToNewIDMap))
+		return false;
+
+	//points count (dataVersion >= 20)
+	uint32_t count = 0;
+	if (in.read((char*)&count, 4) < 0)
+		return ReadError();
+
+	ccLog::Print("count " + QString::number(count));
+
+	ccSerializationHelper::GenericArrayFromFile<Eigen::Array3f, sizeof(Eigen::Array3f), float>(m_center, in, dataVersion);
+	ccSerializationHelper::GenericArrayFromFile<Eigen::Array3f, sizeof(Eigen::Array3f), float>(m_radii, in, dataVersion);
+	ccSerializationHelper::GenericArrayFromFile<Eigen::Matrix3f, sizeof(Eigen::Matrix3f), float>(m_rotationMatrix, in, dataVersion);
+
+	// genericArrayFromFile(m_center, in, dataVersion);
+	// genericArrayFromFile(m_radii, in, dataVersion);
+
+	stdVectorToFile("C:/DATA/qG3Point/m_center_from_bin.csv", m_center);
+	stdVectorToFile("C:/DATA/qG3Point/m_radii_from_bin.csv", m_radii);
+	rotationMatrixToFile("C:/DATA/qG3Point/m_rotationMatrix_from_bin.csv", m_rotationMatrix);
+
+	std::cout << "m_center " << m_center.size() << std::endl;
+	std::cout << "m_radii " << m_radii.size() << std::endl;
+	std::cout << "m_rotationMatrix " << m_rotationMatrix.size() << std::endl;
+	std::cout << "dataVersion " << dataVersion << std::endl;
+	// ccLog::Print("m_center " + QString::number(m_center.size()));
+	// ccLog::Print("m_radii " + QString::number(m_radii.size()));
+	// ccLog::Print("m_rotationMatrix " + QString::number(m_rotationMatrix.size()));
+
+	// m_ccBBoxAll.setValidity(false);
+	// m_ccBBoxAll.clear();
+
+	// recompute bounding box
+	// for (int idx = 0; idx < m_center.size(); idx++)
+	// {
+	// 		float maxRadius = m_radii[idx].maxCoeff();
+	// 		CCVector3 center(m_center[idx](0), m_center[idx](1), m_center[idx](2));
+	// 		m_ccBBoxAll.add(CCVector3(center.x + maxRadius, center.y + maxRadius, center.z + maxRadius));
+	// 		m_ccBBoxAll.add(CCVector3(center.x - maxRadius, center.y - maxRadius, center.z - maxRadius));
+	// }
+
+	// m_ccBBoxAll.setValidity(true);
 
 	return true;
 }

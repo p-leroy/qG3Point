@@ -755,7 +755,7 @@ bool G3PointAction::keep(Xb& condition)
 }
 
 template<typename T>
-bool eigenArrayToFile(QString name, T array)
+bool G3PointAction::EigenArrayToFile(QString name, T array)
 {
 	const Eigen::IOFormat CSVFormat(Eigen::StreamPrecision, Eigen::DontAlignCols, ", ", "\n");
 	std::ofstream file(name.toLatin1());

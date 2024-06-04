@@ -41,6 +41,8 @@ public:
 	bool cleanLabels();
 	void clean();
 
+	template<typename T> static bool EigenArrayToFile(QString name, T array);
+
 private:
 	bool sfConvertToRandomRGB(const ccHObject::Container &selectedEntities, QWidget* parent);
 	void addToStack(int index, const Eigen::ArrayXi& n_donors, const Eigen::ArrayXXi& donors, std::vector<int>& stack);

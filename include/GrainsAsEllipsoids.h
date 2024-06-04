@@ -31,7 +31,10 @@ class GrainsAsEllipsoids : public QObject, public ccCustomHObject
 public:
 	typedef Eigen::Array<bool, Eigen::Dynamic, Eigen::Dynamic> Xb;
 
-	GrainsAsEllipsoids() { }
+	GrainsAsEllipsoids() {
+		this->setMetaData("class_name", "GrainsAsEllipsoids");
+		this->setMetaData("plugin_name", "G3Point");
+	}
 
 	GrainsAsEllipsoids(ccPointCloud *cloud, ccMainAppInterface* app, const std::vector<std::vector<int> >& stacks, const RGBAColorsTableType& colors);
 
@@ -113,9 +116,9 @@ public:
 
 	ccBBox getOwnBB(bool withGLFeatures = false) override;
 
-	bool toFile(QFile& out, short dataVersion) const override;
+	bool toFile_MeOnly(QFile& out, short dataVersion) const override;
 
-	bool fromFile(QFile& in, short dataVersion, int flags, LoadedIDMap& oldToNewIDMap) override;
+	bool fromFile_MeOnly(QFile& in, short dataVersion, int flags, LoadedIDMap& oldToNewIDMap) override;
 
 	ccPointCloud* m_cloud;
 	ccMainAppInterface* m_app;

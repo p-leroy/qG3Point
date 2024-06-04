@@ -60,7 +60,7 @@ G3PointPlugin::G3PointPlugin( QObject *parent )
 	, m_action( nullptr )
 {
 	ccExternalFactory::Container::Shared container = ccExternalFactory::Container::GetUniqueInstance();
-	G3PointFactory* g3PointFactory = new G3PointFactory("G3PointFactory");
+	G3PointFactory* g3PointFactory = new G3PointFactory("G3Point");
 	container->addFactory(g3PointFactory);
 }
 
