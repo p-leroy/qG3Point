@@ -31,10 +31,7 @@ class GrainsAsEllipsoids : public QObject, public ccCustomHObject
 public:
 	typedef Eigen::Array<bool, Eigen::Dynamic, Eigen::Dynamic> Xb;
 
-	GrainsAsEllipsoids() {
-		this->setMetaData("class_name", "GrainsAsEllipsoids");
-		this->setMetaData("plugin_name", "G3Point");
-	}
+	GrainsAsEllipsoids(ccMainAppInterface *app);
 
 	GrainsAsEllipsoids(ccPointCloud *cloud, ccMainAppInterface* app, const std::vector<std::vector<int> >& stacks, const RGBAColorsTableType& colors);
 
@@ -131,6 +128,7 @@ public:
 	Eigen::ArrayX3f ellipsoidInstance;
 
 	QSharedPointer<QOpenGLShaderProgram> m_program;
+	bool m_programInitialized = false;
 
 	// Default path to the shader files
 	QString m_shaderPath;

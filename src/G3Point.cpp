@@ -42,7 +42,7 @@ ccHObject* G3PointFactory::buildObject(const QString& metaName)
 	if (metaName == "GrainsAsEllipsoids")
 	{
 		ccLog::Warning("[G3PointFactory::buildObject] build a GrainsAsEllipsoids object");
-		return new GrainsAsEllipsoids();
+		return new GrainsAsEllipsoids(m_app);
 	}
 	else
 	{
@@ -59,9 +59,6 @@ G3PointPlugin::G3PointPlugin( QObject *parent )
 	, ccStdPluginInterface( ":/CC/plugin/G3PointPlugin/info.json" )
 	, m_action( nullptr )
 {
-	ccExternalFactory::Container::Shared container = ccExternalFactory::Container::GetUniqueInstance();
-	G3PointFactory* g3PointFactory = new G3PointFactory("G3Point");
-	container->addFactory(g3PointFactory);
 }
 
 // This method should enable or disable your plugin actions
@@ -92,6 +89,10 @@ void G3PointPlugin::onNewSelection( const ccHObject::Container &selectedEntities
 // getActions() will be called only once, when plugin is loaded.
 QList<QAction *> G3PointPlugin::getActions()
 {
+	ccExternalFactory::Container::Shared container = ccExternalFactory::Container::GetUniqueInstance();
+	G3PointFactory* g3PointFactory = new G3PointFactory("G3Point", getMainAppInterface());
+	container->addFactory(g3PointFactory);
+
 	// default action (if it has not been already created, this is the moment to do it)
 	if ( !m_action )
 	{

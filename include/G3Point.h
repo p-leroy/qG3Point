@@ -27,9 +27,14 @@ class G3PointFactory : public ccExternalFactory
 {
 public:
 
-	G3PointFactory(QString factoryName) : ccExternalFactory(factoryName) { }
+	G3PointFactory(QString factoryName, ccMainAppInterface *app)
+		: ccExternalFactory(factoryName)
+		, m_app(app)
+	{ }
 
 	ccHObject* buildObject(const QString& metaName) override;
+
+	ccMainAppInterface* m_app;
 };
 
 class G3PointPlugin : public QObject, public ccStdPluginInterface
