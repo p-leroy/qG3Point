@@ -15,6 +15,7 @@ public:
 	explicit G3PointDialog(QString cloudName, QWidget *parent = nullptr);
 	~G3PointDialog();
 
+	void emitKNNChanged(){emit kNNEditingFinished();}
 	void emitSegment(){emit segment();}
 	void emitClusterAndOrClean(){emit clusterAndOrClean();}
 	void emitGetBorders(){emit getBorders();}
@@ -48,6 +49,7 @@ public:
 	void enableDrawPointsForOnlyOneGrain(bool state);
 
 signals:
+	void kNNEditingFinished();
 	void segment();
 	void clusterAndOrClean();
 	void getBorders();

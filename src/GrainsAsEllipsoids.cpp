@@ -1016,7 +1016,14 @@ void GrainsAsEllipsoids::draw(CC_DRAW_CONTEXT& context)
 	 if (isVisible() && isEnabled())
 	 {
 		if (MACRO_Draw3D(context))
+		 {
 			drawGrains(context);
+			//if the entity is currently selected, we draw its bounding-box
+			if (m_selected && !MACRO_EntityPicking(context) && context.currentLODLevel == 0)
+			{
+				drawBB(context, context.bbDefaultCol);
+			}
+		}
 	 }
 }
 

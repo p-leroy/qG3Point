@@ -952,7 +952,7 @@ void G3PointAction::fit()
 	// plot display grains as ellipsoids
 	m_grainColors.reset(new RGBAColorsTableType(getRandomColors(m_localMaximumIndexes.size())));
 	m_grainsAsEllipsoids = new GrainsAsEllipsoids(m_cloud, m_app, m_stacks, *m_grainColors);
-	m_grainsAsEllipsoids->setName("grains as ellipsoids");
+	m_grainsAsEllipsoids->setName("g3point_ellipsoids");
 
 	// add connections with the dialog
 	connect(m_dlg, &G3PointDialog::onlyOneClicked, m_grainsAsEllipsoids, &GrainsAsEllipsoids::showOnlyOne);
@@ -1272,6 +1272,7 @@ void G3PointAction::getNeighborsDistancesSlopes(unsigned index)
 	// get the nearest neighbors
 	if (m_octree->findPointNeighbourhood(P, &Yk, static_cast<unsigned>(m_kNN + 1), m_bestOctreeLevel, maxSquareDist, 0, &neighborhoodSize) >= static_cast<unsigned>(m_kNN))
 	{
+		assert(m_kNN == m_neighborsIndexes.cols());
 		for (int k = 0; k < m_kNN; k++)
 		{
 			// store the index of the neighbor
@@ -1421,9 +1422,7 @@ bool G3PointAction::computeNormalsWithOpen3D()
 }
 
 bool G3PointAction::queryNeighbors(ccPointCloud* cloud, ccMainAppInterface* appInterface, bool useParallelStrategy)
-{
-	std::cout << "[query_neighbor]" << std::endl;
-	m_kNN = m_dlg->getkNN();
+{	
 	QString errorStr;
 
 	ccProgressDialog progressDlg(true, appInterface->getMainWindow());
@@ -1605,6 +1604,7 @@ void G3PointAction::showDlg()
 	{
 		m_dlg = new G3PointDialog(m_cloud->getName());
 
+		connect(m_dlg, &G3PointDialog::kNNEditingFinished, s_g3PointAction, &G3PointAction::setKNN);
 		connect(m_dlg, &G3PointDialog::segment, s_g3PointAction, &G3Point::G3PointAction::segment);
 		connect(m_dlg, &G3PointDialog::clusterAndOrClean, s_g3PointAction, &G3Point::G3PointAction::clusterAndOrClean);
 		connect(m_dlg, &G3PointDialog::getBorders, s_g3PointAction, &G3Point::G3PointAction::getBorders);
@@ -1713,6 +1713,12 @@ bool G3PointAction::setCloud(ccPointCloud *cloud)
 	}
 
 	return true;
+}
+
+void G3PointAction::setKNN()
+{
+	m_kNN = m_dlg->getkNN();
+	std::cout << "kNN " << m_kNN << std::endl;
 }
 
 void G3PointAction::createAction(ccMainAppInterface *appInterface)

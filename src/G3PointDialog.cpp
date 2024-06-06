@@ -12,6 +12,7 @@ G3PointDialog::G3PointDialog(QString cloudName, QWidget *parent)
 	setWindowTitle("G3Point");
 	ui->labelCloud->setText(cloudName);
 
+	connect(this->ui->spinBoxkNN, &QSpinBox::editingFinished, this, &G3PointDialog::emitKNNChanged);
 	connect(this->ui->pushButtonSegment, &QPushButton::clicked, this, &G3PointDialog::emitSegment);
 	connect(this->ui->pushButtonClusterAndOrClean, &QPushButton::clicked, this, &G3PointDialog::emitClusterAndOrClean);
 	connect(this->ui->pushButtonGetBorders, &QPushButton::clicked, this, &G3PointDialog::emitGetBorders);

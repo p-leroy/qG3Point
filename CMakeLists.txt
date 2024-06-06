@@ -11,7 +11,7 @@ if ( PLUGIN_G3POINT )
 	 
 	AddPlugin( NAME ${PROJECT_NAME} )
 
-set(QG3POINT_PLUGIN_VERSION "0.3")
+set(QG3POINT_PLUGIN_VERSION "0.3+")
 
 	add_subdirectory( include )
 	add_subdirectory( src )
@@ -27,7 +27,7 @@ set(QG3POINT_PLUGIN_VERSION "0.3")
 	)
 	
 	# may be needed for debug
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /bigobj")
+	# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /bigobj")
 
 	# Find installed Open3D, which exports Open3D::Open3D
 	find_package( Open3D REQUIRED )

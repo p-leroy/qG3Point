@@ -65,6 +65,7 @@ private:
 	void showDlg();
 	void resetDlg();
 	bool setCloud(ccPointCloud *cloud);
+	void setKNN();
 
 	int m_kNN = 20;
 	double m_radiusFactor = 0.6;
