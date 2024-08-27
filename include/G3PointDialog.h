@@ -15,6 +15,9 @@ public:
 	explicit G3PointDialog(QString cloudName, QWidget *parent = nullptr);
 	~G3PointDialog();
 
+	void readSettings();
+	void writeSettings();
+
 	void emitKNNChanged(){emit kNNEditingFinished();}
 	void emitSegment(){emit segment();}
 	void emitClusterAndOrClean(){emit clusterAndOrClean();}

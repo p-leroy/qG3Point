@@ -1,6 +1,8 @@
 #include "G3PointDialog.h"
 #include "ui_qG3PointDialog.h"
 
+#include <QSettings>
+
 G3PointDialog::G3PointDialog(QString cloudName, QWidget *parent)
 	: QDialog(parent)
 	, ui(new Ui::qG3PointDialog)
@@ -34,6 +36,35 @@ G3PointDialog::G3PointDialog(QString cloudName, QWidget *parent)
 G3PointDialog::~G3PointDialog()
 {
 	delete ui;
+}
+
+void G3PointDialog::readSettings()
+{
+	QSettings settings;
+	settings.beginGroup("G3Point");
+
+	// kNN
+	int kNN = settings.value("kNN", 20).toInt();
+	this->ui->spinBoxkNN->setValue(kNN);
+	// radius factor
+	double radiusFactor = settings.value("radiusFactor", 0.6).toDouble();
+	this->ui->doubleSpinBoxRadiusFactor->setValue(radiusFactor);
+	// max angle 1
+	double maxAngle1 = settings.value("maxAngle1", 60).toDouble();
+	this->ui->doubleSpinBoxRadiusFactor->setValue(maxAngle1);
+}
+
+void G3PointDialog::writeSettings()
+{
+	QSettings settings;
+	settings.beginGroup("G3Point");
+
+	// kNN
+	settings.setValue("kNN", ui->spinBoxkNN->value());
+	// radius factor
+	settings.setValue("radiusFactor", ui->doubleSpinBoxRadiusFactor->value());
+	// max angle 1
+	settings.setValue("maxAngle1", ui->doubleSpinBoxMaxAngle1->value());
 }
 
 double G3PointDialog::getMaxAngle1()
