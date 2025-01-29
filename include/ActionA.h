@@ -35,6 +35,7 @@ public:
 	bool cluster();
 	void fit();
 	void exportResults();
+	void wolman();
 	bool processNewStacks(std::vector<std::vector<int>>& newStacks, int pointCount);
 	bool merge(XXb& condition);
 	bool keep(Xb& condition);

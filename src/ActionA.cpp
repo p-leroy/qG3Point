@@ -974,10 +974,63 @@ void G3PointAction::fit()
 }
 
 void G3PointAction::exportResults()
-{
+{	
 	if (m_grainsAsEllipsoids)
 	{
 		m_grainsAsEllipsoids->exportResultsAsCloud();
+	}
+}
+
+Eigen::VectorXf arange(double start, double stop, double step)
+{
+	// Values are generated within the half-open interval [0, stop)
+	double range = (stop - start);
+	int n_steps = floor(range / step) + 1;
+	return Eigen::VectorXf(n_steps);
+}
+
+void G3PointAction::wolman()
+{
+	int n_iter = 100;
+	Eigen::VectorXf x_grid;
+	Eigen::VectorXf y_grid;
+
+	// rebuild a matrix with the coordinates of the centers of the grains
+	int n_grains = m_grainsAsEllipsoids->m_center.size();
+	Eigen::VectorXf b_axis(n_grains);
+	Eigen::VectorXi labels_ellipsoids(n_grains);
+	for (int i = 0; i < n_grains; i++)
+	{
+		b_axis(i) = 2 * m_grainsAsEllipsoids->m_radii[i].y(); // files are in radius, we need diameters
+		labels_ellipsoids(i) = i;
+	}
+
+	int n_points = m_grainsAsEllipsoids->m_cloud->size();
+	Eigen::VectorXf x(n_points);
+	Eigen::VectorXf y(n_points);
+	Eigen::VectorXf z(n_points);
+	Eigen::VectorXi labels_grains(n_points);
+
+	for (int i = 0; i < n_points; i++)
+	{
+		const CCVector3* P = m_grainsAsEllipsoids->m_cloud->getPoint(i);
+		x(i) = P->x;
+		y(i) = P->y;
+		z(i) = P->z;
+	}
+
+	float dx = 1.1 * b_axis.maxCoeff();
+
+	for (int k = 0; k < n_iter; k++)
+	{
+		float r1 = (float) rand()/RAND_MAX;
+		float r2 = (float) rand()/RAND_MAX;
+		float dx =
+		Eigen::VectorXf x_grid = arange(x.minCoeff(), x.maxCoeff(), dx);
+
+
+		std::cout << "r1 " << r1 << ", r2  " << r2 << std::endl;
+
 	}
 }
 
@@ -1611,6 +1664,7 @@ void G3PointAction::showDlg()
 
 		connect(m_dlg, &G3PointDialog::fit, s_g3PointAction, &G3Point::G3PointAction::fit);
 		connect(m_dlg, &G3PointDialog::exportResults, s_g3PointAction, &G3Point::G3PointAction::exportResults);
+		connect(m_dlg, &G3PointDialog::wolman, s_g3PointAction, &G3Point::G3PointAction::wolman);
 
 		connect(m_dlg, &QDialog::finished, s_g3PointAction, &G3Point::G3PointAction::clean);
 		connect(m_dlg, &QDialog::finished, s_g3PointAction, &G3Point::G3PointAction::resetDlg); // dialog is defined with Qt::WA_DeleteOnClose

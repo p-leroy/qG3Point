@@ -28,6 +28,7 @@ public:
 	void emitOnlyOneChanged(int idx){emit onlyOneChanged(idx);}
 	void emitFit(){emit fit();}
 	void emitExportResults(){emit exportResults();}
+	void emitWolman(){emit wolman();}
 	void emitTransparencyChanged(double transparency){emit transparencyChanged(transparency);}
 	void emitDrawSurfaces(bool state){emit drawSurfaces(state);}
 	void emitDrawLines(bool state){emit drawLines(state);}
@@ -58,6 +59,7 @@ signals:
 	void getBorders();
 	void fit();
 	void exportResults();
+	void wolman();
 
 	void allClicked(bool state);
 	void onlyOneClicked(bool state);
