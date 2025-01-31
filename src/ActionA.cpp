@@ -9,7 +9,6 @@
 #include <ccProgressDialog.h>
 #include <ccHObject.h>
 #include <ccPointCloud.h>
-#include <ccScalarField.h>
 #include <ccNormalVectors.h>
 
 // CCCoreLib
@@ -630,6 +629,42 @@ bool G3PointAction::processNewStacks(std::vector<std::vector<int>>& newStacks, i
 	return true;
 }
 
+bool G3PointAction::buildStacksFromG3PointLabelSF(CCCoreLib::ScalarField* g3PointLabel)
+{
+	m_stacks.clear();
+
+	// get all the different labels
+	std::set<float> labels;
+	for (int idx = 0; idx < g3PointLabel->size(); idx++)
+	{
+		labels.insert(g3PointLabel->getValue(idx));
+	}
+
+	// rebuild the stacks
+	for (auto label : labels)
+	{
+		std::vector<int> stack;
+		for (int idx =0; idx < m_cloud->size(); idx++)
+		{
+			if (g3PointLabel->getLocalValue(idx) == label)
+			{
+				stack.push_back(idx);
+			}
+		}
+		m_stacks.push_back(stack);
+	}
+
+
+	if (processNewStacks(m_stacks, m_cloud->size()))
+	{
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
 bool G3PointAction::merge(XXb& condition)
 {
 	std::vector<std::vector<int>> newStacks;
@@ -945,29 +980,44 @@ void G3PointAction::fit()
 {
 	if (m_stacks.empty())
 	{
-		ccLog::Warning("[G3PointAction::fit] stacks are empty, nothing to fit");
+		ccLog::Warning("[G3PointAction::fit] stacks are empty, try to rebuild them using g3point_label scalar field");
 		return;
+	}
+	else
+	{
+		int idx = m_cloud->getScalarFieldIndexByName("g3point_label");
+		if (idx == -1)
+		{
+			ccLog::Warning("[G3PointAction::fit] no existing g3point_scalar field");
+			return;
+		}
+		CCCoreLib::ScalarField* g3PointLabel = m_cloud->getScalarField(idx);
+		if (!buildStacksFromG3PointLabelSF(g3PointLabel))
+		{
+			ccLog::Warning("[G3PointAction::fit] not possible to build stacks from existing g3point_scalar field");
+			return;
+		}
 	}
 
 	// plot display grains as ellipsoids
 	m_grainColors.reset(new RGBAColorsTableType(getRandomColors(m_localMaximumIndexes.size())));
-	m_grainsAsEllipsoids = new GrainsAsEllipsoids(m_cloud, m_app, m_stacks, *m_grainColors);
+	m_grainsAsEllipsoids.reset(new GrainsAsEllipsoids(m_cloud, m_app, m_stacks, *m_grainColors));
 	m_grainsAsEllipsoids->setName("g3point_ellipsoids");
 
 	// add connections with the dialog
-	connect(m_dlg, &G3PointDialog::onlyOneClicked, m_grainsAsEllipsoids, &GrainsAsEllipsoids::showOnlyOne);
-	connect(m_dlg, &G3PointDialog::allClicked, m_grainsAsEllipsoids, &GrainsAsEllipsoids::showAll);
-	connect(m_dlg, &G3PointDialog::onlyOneChanged, m_grainsAsEllipsoids, &GrainsAsEllipsoids::setOnlyOne);
-	connect(m_dlg, &G3PointDialog::transparencyChanged, m_grainsAsEllipsoids, &GrainsAsEllipsoids::setTransparency);
-	connect(m_dlg, &G3PointDialog::drawSurfaces, m_grainsAsEllipsoids, &GrainsAsEllipsoids::drawSurfaces);
-	connect(m_dlg, &G3PointDialog::drawLines, m_grainsAsEllipsoids, &GrainsAsEllipsoids::drawLines);
-	connect(m_dlg, &G3PointDialog::drawPoints, m_grainsAsEllipsoids, &GrainsAsEllipsoids::drawPoints);
-	connect(m_dlg, &G3PointDialog::glPointSize, m_grainsAsEllipsoids, &GrainsAsEllipsoids::setGLPointSize);
+	connect(m_dlg, &G3PointDialog::onlyOneClicked, m_grainsAsEllipsoids.data(), &GrainsAsEllipsoids::showOnlyOne);
+	connect(m_dlg, &G3PointDialog::allClicked, m_grainsAsEllipsoids.data(), &GrainsAsEllipsoids::showAll);
+	connect(m_dlg, &G3PointDialog::onlyOneChanged, m_grainsAsEllipsoids.data(), &GrainsAsEllipsoids::setOnlyOne);
+	connect(m_dlg, &G3PointDialog::transparencyChanged, m_grainsAsEllipsoids.data(), &GrainsAsEllipsoids::setTransparency);
+	connect(m_dlg, &G3PointDialog::drawSurfaces, m_grainsAsEllipsoids.data(), &GrainsAsEllipsoids::drawSurfaces);
+	connect(m_dlg, &G3PointDialog::drawLines, m_grainsAsEllipsoids.data(), &GrainsAsEllipsoids::drawLines);
+	connect(m_dlg, &G3PointDialog::drawPoints, m_grainsAsEllipsoids.data(), &GrainsAsEllipsoids::drawPoints);
+	connect(m_dlg, &G3PointDialog::glPointSize, m_grainsAsEllipsoids.data(), &GrainsAsEllipsoids::setGLPointSize);
 
 	m_dlg->setOnlyOneMax(m_stacks.size());
 	m_dlg->emitSignals(); // force to send parameters to m_grainsAsEllipsoids
 
-	m_cloud->getParent()->addChild(m_grainsAsEllipsoids);
+	m_cloud->getParent()->addChild(m_grainsAsEllipsoids.data());
 	m_app->addToDB(m_cloud);
 
 	m_app->updateUI();
@@ -989,49 +1039,103 @@ Eigen::VectorXf arange(double start, double stop, double step)
 	return Eigen::VectorXf(n_steps);
 }
 
-void G3PointAction::wolman()
+bool G3PointAction::wolman()
 {
-	int n_iter = 100;
-	Eigen::VectorXf x_grid;
-	Eigen::VectorXf y_grid;
+	int n_iter = 1;
 
-	// rebuild a matrix with the coordinates of the centers of the grains
-	int n_grains = m_grainsAsEllipsoids->m_center.size();
-	Eigen::VectorXf b_axis(n_grains);
-	Eigen::VectorXi labels_ellipsoids(n_grains);
-	for (int i = 0; i < n_grains; i++)
+	if (m_grainsAsEllipsoids.isNull())
 	{
-		b_axis(i) = 2 * m_grainsAsEllipsoids->m_radii[i].y(); // files are in radius, we need diameters
-		labels_ellipsoids(i) = i;
+		ccLog::Error("[G3PointAction::wolman] no ellipsoid, not possible to do Wolman analysis");
+		return false;
 	}
 
-	int n_points = m_grainsAsEllipsoids->m_cloud->size();
-	Eigen::VectorXf x(n_points);
-	Eigen::VectorXf y(n_points);
-	Eigen::VectorXf z(n_points);
-	Eigen::VectorXi labels_grains(n_points);
+	// get the ellipsoid y axes andd labels
+	int nEllipsoids = m_grainsAsEllipsoids->m_center.size();
+	Eigen::VectorXf b_axis(nEllipsoids);
+	Eigen::VectorXi ellipsoidLabels(nEllipsoids);
+	for (int i = 0; i < nEllipsoids; i++)
+	{
+		b_axis(i) = 2 * m_grainsAsEllipsoids->m_radii[i].y(); // files are in radius, we need diameters
+		ellipsoidLabels(i) = i;
+	}
 
+	// rebuild a matrix with the coordinates the labels of the original cloud
+	int n_points = m_grainsAsEllipsoids->m_cloud->size();
+	Eigen::ArrayXf x(n_points);
+	Eigen::ArrayXf y(n_points);
+	Eigen::ArrayXf z(n_points);
+	Eigen::ArrayXi pointsLabels(n_points);
+	int sfIdx = m_grainsAsEllipsoids->m_cloud->getScalarFieldIndexByName("g3point_label");
+	if (sfIdx == -1)
+	{
+		ccLog::Error("[G3PointAction::wolman] no g3point_label");
+		return false;
+	}
+	CCCoreLib::ScalarField* g3point_label = m_cloud->getScalarField(sfIdx);
 	for (int i = 0; i < n_points; i++)
 	{
 		const CCVector3* P = m_grainsAsEllipsoids->m_cloud->getPoint(i);
 		x(i) = P->x;
 		y(i) = P->y;
 		z(i) = P->z;
+		pointsLabels(i) = g3point_label->getValue(i);
 	}
 
 	float dx = 1.1 * b_axis.maxCoeff();
 
+	Eigen::ArrayXf x_grid;
+	Eigen::ArrayXf y_grid;
+	Eigen::ArrayXf distances;
+	Eigen::Index maxLoc;
 	for (int k = 0; k < n_iter; k++)
 	{
+		float r0 = (float) rand()/RAND_MAX;
 		float r1 = (float) rand()/RAND_MAX;
-		float r2 = (float) rand()/RAND_MAX;
-		float dx =
-		Eigen::VectorXf x_grid = arange(x.minCoeff(), x.maxCoeff(), dx);
-
-
-		std::cout << "r1 " << r1 << ", r2  " << r2 << std::endl;
-
+		std::cout << "r0 " << r0 << ", r1  " << r1 << std::endl;
+		x_grid = arange(x.minCoeff() - r0 * dx, x.maxCoeff(), dx);
+		y_grid = arange(y.minCoeff() - r1 * dx, y.maxCoeff(), dx);
+		int nx = x_grid.size();
+		int ny = y_grid.size();
+		Eigen::ArrayXXf dist(nx, ny);
+		Eigen::ArrayXXf iWolman(nx, ny);
+		for (int ix = 0; ix < nx; ix++)
+		{
+			for (int iy = 0; iy < ny; iy++)
+			{
+				distances = ((x.pow(2) - x_grid(ix)) + (y.pow(2) - y_grid[iy])).sqrt();
+				distances.maxCoeff(&maxLoc);
+				dist(ix, iy) = distances(maxLoc);
+				iWolman(ix, iy) = maxLoc;
+			}
+		}
+		XXb condition = (dist < dx / 10);
+		Eigen::ArrayXf iWolmanSelection(condition.count());
+		int indexInWolmanSelection = 0;
+		for (int k = 0; k < condition.size(); k++)
+		{
+			if (condition(k))
+			{
+				iWolmanSelection(indexInWolmanSelection) = iWolman(k);
+				indexInWolmanSelection++;
+			}
+		}
+		Eigen::ArrayXi wolmanSelection;
+		wolmanSelection = pointsLabels(iWolmanSelection);
+		std::unordered_set<int> setOfA(wolmanSelection.begin(), wolmanSelection.end());
+		std::vector<int> intersection;
+	// 	// A is wolmanSelection
+	// 	// B is ellipsoidsLabels
+		for (int i = 0; i < nEllipsoids; ++i)
+		{
+			int ellipsoidLabel = ellipsoidLabels[i];
+			if (setOfA.find(ellipsoidLabel) != setOfA.end())
+			{
+				intersection.push_back(ellipsoidLabel);
+			}
+		}
 	}
+
+	return true;
 }
 
 bool G3PointAction::cleanLabels()

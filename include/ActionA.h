@@ -1,6 +1,7 @@
 #include "Eigen/Dense"
 
 #include <ccOctree.h>
+#include <ccScalarField.h>
 
 #include <vector>
 
@@ -35,8 +36,9 @@ public:
 	bool cluster();
 	void fit();
 	void exportResults();
-	void wolman();
+	bool wolman();
 	bool processNewStacks(std::vector<std::vector<int>>& newStacks, int pointCount);
+	bool buildStacksFromG3PointLabelSF(CCCoreLib::ScalarField *g3PointLabel);
 	bool merge(XXb& condition);
 	bool keep(Xb& condition);
 	bool cleanLabels();
@@ -104,6 +106,6 @@ private:
 
 	static G3PointAction* s_g3PointAction;
 
-	GrainsAsEllipsoids* m_grainsAsEllipsoids;
+	QSharedPointer<GrainsAsEllipsoids> m_grainsAsEllipsoids;
 };
 }
