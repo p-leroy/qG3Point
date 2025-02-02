@@ -104,7 +104,7 @@ private:
 	unsigned char m_bestOctreeLevel = 0;
 	CCCoreLib::DgmOctree::NearestNeighboursSearchStruct m_nNSS;
 
-	static G3PointAction* s_g3PointAction;
+	static std::shared_ptr<G3PointAction> s_g3PointAction;
 
 	QSharedPointer<GrainsAsEllipsoids> m_grainsAsEllipsoids;
 };

@@ -11,7 +11,7 @@ if ( PLUGIN_G3POINT )
 	 
 	AddPlugin( NAME ${PROJECT_NAME} )
 
-set(QG3POINT_PLUGIN_VERSION "0.3+")
+	set(QG3POINT_PLUGIN_VERSION "0.3+")
 
 	add_subdirectory( include )
 	add_subdirectory( src )
@@ -29,9 +29,17 @@ set(QG3POINT_PLUGIN_VERSION "0.3+")
 	# may be needed for debug
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /bigobj")
 
+	#============
+	# QCUSTOMPLOT
+	target_link_libraries(${PROJECT_NAME}
+		QCustomPlot
+		Qt5::PrintSupport
+		)
+
 	# Find installed Open3D, which exports Open3D::Open3D
 	find_package( Open3D REQUIRED )
 	target_link_libraries( ${PROJECT_NAME} Open3D::Open3D )
+
 	message( "Open3D_DIR ${Open3D_DIR}" )
 	set( OPENCV_DEP_DLL_FILES ${Open3D_DIR}/../bin/Open3D.dll)
 	copy_files( "${OPENCV_DEP_DLL_FILES}" "${CLOUDCOMPARE_DEST_FOLDER}" 1) #mind the quotes!

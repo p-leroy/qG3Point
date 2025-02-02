@@ -43,10 +43,11 @@
 
 #include <G3PointDialog.h>
 #include <qG3PointDisclaimer.h>
+#include <WolmanCustomPlot.h>
 
 namespace G3Point
 {
-G3PointAction* G3PointAction::s_g3PointAction = nullptr;
+std::shared_ptr<G3PointAction> G3PointAction::s_g3PointAction;
 
 G3PointAction::G3PointAction(ccPointCloud *cloud, ccMainAppInterface *app)
 	: m_app(app)
@@ -75,11 +76,21 @@ void G3PointAction::GetG3PointAction(ccPointCloud *cloud, ccMainAppInterface *ap
 
 	if (!s_g3PointAction) // create the singleton if needed
 	{
-		s_g3PointAction = new G3PointAction(cloud, app);
+		s_g3PointAction.reset(new G3PointAction(cloud, app));
 	}
 	else
 	{
-		s_g3PointAction->setCloud(cloud);
+		int sfIdx = cloud->getScalarFieldIndexByName("g3point_label");
+		if (sfIdx == -1)
+		{
+			ccLog::Warning("[G3PointAction::GetG3PointAction] no g3point_label scalar field, reset action");
+			s_g3PointAction.reset(new G3PointAction(cloud, app));
+		}
+		else
+		{
+			ccLog::Print("[G3PointAction::GetG3PointAction] use existing g3point_label scalar field");
+			s_g3PointAction->setCloud(cloud);
+		}
 	}
 	s_g3PointAction->showDlg();
 }
@@ -981,14 +992,10 @@ void G3PointAction::fit()
 	if (m_stacks.empty())
 	{
 		ccLog::Warning("[G3PointAction::fit] stacks are empty, try to rebuild them using g3point_label scalar field");
-		return;
-	}
-	else
-	{
 		int idx = m_cloud->getScalarFieldIndexByName("g3point_label");
 		if (idx == -1)
 		{
-			ccLog::Warning("[G3PointAction::fit] no existing g3point_scalar field");
+			ccLog::Warning("[G3PointAction::fit] no existing g3point_label scalar field");
 			return;
 		}
 		CCCoreLib::ScalarField* g3PointLabel = m_cloud->getScalarField(idx);
@@ -1036,12 +1043,50 @@ Eigen::VectorXf arange(double start, double stop, double step)
 	// Values are generated within the half-open interval [0, stop)
 	double range = (stop - start);
 	int n_steps = floor(range / step) + 1;
-	return Eigen::VectorXf(n_steps);
+	Eigen::VectorXf vector(n_steps);
+	for (int k = 0; k < n_steps; k++)
+	{
+		vector(k) = start + k * step;
+	}
+	return vector;
+}
+
+template<typename T>
+void myPrint(QString name, T array)
+{
+	std::cout << name.toStdString() << "\n" << array << std::endl;
+}
+
+// from https://stackoverflow.com/questions/11964552/finding-quartiles
+// this gives the same values as python with the default method
+// in Python, use hazen as a method to get the same results as in Matlab
+// Hyndman and Fan, 1996) R. J. Hyndman and Y. Fan, “Sample quantiles in statistical packages”,
+// The American Statistician, 50(4), pp. 361-365, 1996
+template <typename T1, typename T2>
+typename T1::value_type quant(const T1 &x, T2 q)
+{
+	assert(q >= 0.0 && q <= 1.0);
+
+	const auto n  = x.size();
+	const auto id = (n - 1) * q;
+	const auto lo = floor(id);
+	const auto hi = ceil(id);
+	const auto qs = x[lo];
+	const auto h  = (id - lo);
+
+	return (1.0 - h) * qs + h * x[hi];
+}
+
+template <typename T>
+double std_dev(const T &vec)
+{
+	// un-biased estimation of the standard deviation => divide by vec.size() - 1
+	return std::sqrt((vec - vec.mean()).square().sum() / (vec.size() - 1));
 }
 
 bool G3PointAction::wolman()
 {
-	int n_iter = 1;
+	int n_iter = 10;
 
 	if (m_grainsAsEllipsoids.isNull())
 	{
@@ -1086,12 +1131,23 @@ bool G3PointAction::wolman()
 	Eigen::ArrayXf x_grid;
 	Eigen::ArrayXf y_grid;
 	Eigen::ArrayXf distances;
-	Eigen::Index maxLoc;
+	Eigen::Index minLoc;
+	std::vector<Eigen::ArrayXf> d;
+
+	std::random_device rd;
+	std::default_random_engine urbg{rd()}; // Unifor Random Binary Generator
+	std::uniform_real_distribution<float> dist{0, 1};
+
+#ifndef _DEBUG
+#if defined(_OPENMP)
+#pragma omp parallel for num_threads(std::max(1, omp_get_max_threads() - 2))
+#endif
+#endif
 	for (int k = 0; k < n_iter; k++)
 	{
-		float r0 = (float) rand()/RAND_MAX;
-		float r1 = (float) rand()/RAND_MAX;
-		std::cout << "r0 " << r0 << ", r1  " << r1 << std::endl;
+		float r0 = dist(urbg);
+		float r1 = dist(urbg);
+		std::cout << r0 << ", " << r1 << "," << std::endl;
 		x_grid = arange(x.minCoeff() - r0 * dx, x.maxCoeff(), dx);
 		y_grid = arange(y.minCoeff() - r1 * dx, y.maxCoeff(), dx);
 		int nx = x_grid.size();
@@ -1102,10 +1158,10 @@ bool G3PointAction::wolman()
 		{
 			for (int iy = 0; iy < ny; iy++)
 			{
-				distances = ((x.pow(2) - x_grid(ix)) + (y.pow(2) - y_grid[iy])).sqrt();
-				distances.maxCoeff(&maxLoc);
-				dist(ix, iy) = distances(maxLoc);
-				iWolman(ix, iy) = maxLoc;
+				distances = ((x - x_grid(ix)).pow(2) + (y - y_grid(iy)).pow(2)).sqrt();
+
+				dist(ix, iy) = distances.minCoeff(&minLoc);
+				iWolman(ix, iy) = minLoc;
 			}
 		}
 		XXb condition = (dist < dx / 10);
@@ -1122,7 +1178,7 @@ bool G3PointAction::wolman()
 		Eigen::ArrayXi wolmanSelection;
 		wolmanSelection = pointsLabels(iWolmanSelection);
 		std::unordered_set<int> setOfA(wolmanSelection.begin(), wolmanSelection.end());
-		std::vector<int> intersection;
+		std::vector<int> y_ind;
 	// 	// A is wolmanSelection
 	// 	// B is ellipsoidsLabels
 		for (int i = 0; i < nEllipsoids; ++i)
@@ -1130,10 +1186,57 @@ bool G3PointAction::wolman()
 			int ellipsoidLabel = ellipsoidLabels[i];
 			if (setOfA.find(ellipsoidLabel) != setOfA.end())
 			{
-				intersection.push_back(ellipsoidLabel);
+				y_ind.push_back(ellipsoidLabel);
 			}
 		}
+		Eigen::ArrayXf d_item(y_ind.size());
+		for (int i = 0; i < y_ind.size(); i++)
+		{
+			d_item(i) = b_axis(y_ind[i]) * 1000; // conversion to mm
+		}
+#pragma omp critical
+		{
+		d.push_back(d_item);
+		}
 	}
+
+	Eigen::ArrayXXf dq(n_iter, 3);
+	Eigen::ArrayXf d_sample = d[0];
+	dq(0, Eigen::all) << quant(d[0], 0.1), quant(d[0], 0.5), quant(d[0], 0.9);
+	for (int i = 1; i < n_iter; i++)
+	{
+		Eigen::ArrayXf tmp(d_sample.size() + d[i].size());
+		tmp << d_sample, d[i];
+		d_sample = tmp;
+		dq(i, Eigen::all) << quant(d[i], 0.1), quant(d[i], 0.5), quant(d[i], 0.9);
+	}
+
+	// compute standard deviation
+	Eigen::Array3d edq {std_dev(dq(Eigen::all, 0)),
+					   std_dev(dq(Eigen::all, 1)),
+					   std_dev(dq(Eigen::all, 2))};
+	Eigen::Array3d dq_final {quant(d_sample, 0.1),
+							quant(d_sample, 0.5),
+							quant(d_sample, 0.9)};
+
+	// QCustomPlot
+	WolmanCustomPlot* wolmanCustomPlot = new WolmanCustomPlot();
+	QCPGraph* graph = wolmanCustomPlot->addGraph();
+	QVector<double> x_data(d_sample.size());
+	QVector<double> y_data(d_sample.size());
+	for (int k = 0; k < d_sample.size(); k++)
+	{
+		x_data[k] = d_sample(k);
+		y_data[k] = (static_cast<double>(k)) / static_cast<double>(d_sample.size());
+	}
+	std::sort(x_data.begin(), x_data.end());
+	graph->setData(x_data, y_data);
+	graph->rescaleAxes();
+	// give the axes some labels:
+	wolmanCustomPlot->xAxis->setScaleType(QCPAxis::stLogarithmic);
+	wolmanCustomPlot->xAxis->setLabel("Diameter [mm]");
+	wolmanCustomPlot->yAxis->setLabel("CDF");
+	wolmanCustomPlot->show();
 
 	return true;
 }
@@ -1761,17 +1864,17 @@ void G3PointAction::showDlg()
 	{
 		m_dlg = new G3PointDialog(m_cloud->getName());
 
-		connect(m_dlg, &G3PointDialog::kNNEditingFinished, s_g3PointAction, &G3PointAction::setKNN);
-		connect(m_dlg, &G3PointDialog::segment, s_g3PointAction, &G3Point::G3PointAction::segment);
-		connect(m_dlg, &G3PointDialog::clusterAndOrClean, s_g3PointAction, &G3Point::G3PointAction::clusterAndOrClean);
-		connect(m_dlg, &G3PointDialog::getBorders, s_g3PointAction, &G3Point::G3PointAction::getBorders);
+		connect(m_dlg, &G3PointDialog::kNNEditingFinished, s_g3PointAction.get(), &G3PointAction::setKNN);
+		connect(m_dlg, &G3PointDialog::segment, s_g3PointAction.get(), &G3Point::G3PointAction::segment);
+		connect(m_dlg, &G3PointDialog::clusterAndOrClean, s_g3PointAction.get(), &G3Point::G3PointAction::clusterAndOrClean);
+		connect(m_dlg, &G3PointDialog::getBorders, s_g3PointAction.get(), &G3Point::G3PointAction::getBorders);
 
-		connect(m_dlg, &G3PointDialog::fit, s_g3PointAction, &G3Point::G3PointAction::fit);
-		connect(m_dlg, &G3PointDialog::exportResults, s_g3PointAction, &G3Point::G3PointAction::exportResults);
-		connect(m_dlg, &G3PointDialog::wolman, s_g3PointAction, &G3Point::G3PointAction::wolman);
+		connect(m_dlg, &G3PointDialog::fit, s_g3PointAction.get(), &G3Point::G3PointAction::fit);
+		connect(m_dlg, &G3PointDialog::exportResults, s_g3PointAction.get(), &G3Point::G3PointAction::exportResults);
+		connect(m_dlg, &G3PointDialog::wolman, s_g3PointAction.get(), &G3Point::G3PointAction::wolman);
 
-		connect(m_dlg, &QDialog::finished, s_g3PointAction, &G3Point::G3PointAction::clean);
-		connect(m_dlg, &QDialog::finished, s_g3PointAction, &G3Point::G3PointAction::resetDlg); // dialog is defined with Qt::WA_DeleteOnClose
+		connect(m_dlg, &QDialog::finished, s_g3PointAction.get(), &G3Point::G3PointAction::clean);
+		connect(m_dlg, &QDialog::finished, s_g3PointAction.get(), &G3Point::G3PointAction::resetDlg); // dialog is defined with Qt::WA_DeleteOnClose
 	}
 	else
 	{
