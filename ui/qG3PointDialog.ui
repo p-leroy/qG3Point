@@ -17,7 +17,7 @@
    <item>
     <widget class="QTabWidget" name="tabWidget">
      <property name="currentIndex">
-      <number>0</number>
+      <number>1</number>
      </property>
      <widget class="QWidget" name="tab">
       <attribute name="title">
@@ -357,6 +357,13 @@
         <widget class="QPushButton" name="pushButtonWolman">
          <property name="text">
           <string>Wolman</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="pushButtonAngles">
+         <property name="text">
+          <string>Angles</string>
          </property>
         </widget>
        </item>

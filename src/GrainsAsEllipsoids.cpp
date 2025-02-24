@@ -432,6 +432,15 @@ bool GrainsAsEllipsoids::explicitToImplicit(const Eigen::Array3f& center,
 													  const Eigen::Matrix3f& rotationMatrix,
 													  Eigen::ArrayXd& parameters)
 {
+	// INSPIRED BY MATLAB CODE
+
+	// Cast ellipsoid defined with explicit parameters to implicit vector form.
+	//
+	// Examples:
+	//    p = ellipse_ex2im([xc,yc,zc],[xr,yr,zr],eye(3,3));
+
+	// Matlab code => Copyright 2011 Levente Hunyadi
+
 	float xrr = 1 / radii(0);
 	float yrr = 1 / radii(1);
 	float zrr = 1 / radii(2);
@@ -506,6 +515,29 @@ bool GrainsAsEllipsoids::implicitToExplicit(const Eigen::ArrayXd& parameters,
 											Eigen::Array3f& radii,
 											Eigen::Matrix3f& rotationMatrix)
 {
+	// INSPIRED BY MATLAB CODE
+
+	// Cast ellipsoid defined with implicit parameter vector to explicit form.
+	// The implicit equation of a general ellipse is
+	// F(x,y,z) = Ax^2 + By^2 + Cz^2 + 2Dxy + 2Exz + 2Fyz + 2Gx + 2Hy + 2Iz - 1 = 0
+	//
+	// Input arguments:
+	// v:
+	//    the 10 parameters describing the ellipsoid algebraically
+	// Output arguments:
+	// center:
+	//    ellispoid center coordinates [cx; cy; cz]
+	// ax:
+	//    ellipsoid semi-axes (radii) [a; b; c]
+	// quat: NOT IN THIS CPP VERSION, ONLY MATLAB VERSION
+	//    ellipsoid rotation in quaternion representation
+	// R:
+	//    ellipsoid rotation (radii directions as rows of the 3x3 matrix)
+	//
+	// See also: ellipse_im2ex
+
+	// Matlab code => Copyright 2011 Levente Hunyadi
+
 	Eigen::ArrayXd p = parameters;
 
 	p(3) = 0.5 * p(3);
@@ -554,6 +586,26 @@ bool GrainsAsEllipsoids::implicitToExplicit(const Eigen::ArrayXd& parameters,
 
 bool GrainsAsEllipsoids::directFit(const Eigen::ArrayX3d& xyz, Eigen::ArrayXd& parameters)
 {
+	// INSPIRED BY MATLAB CODE
+
+	// Direct least squares fitting of ellipsoids under the constraint 4J - I^2 > 0.
+	// The constraint confines the class of ellipsoids to fit to those whose smallest radius
+	// is at least half of the largest radius.
+	//
+	// Input arguments:
+	// x,y,z;
+	//    x, y and z coodinates of 3D points
+	//
+	// Output arguments:
+	// p:
+	//    a 10-parameter vector of the algebraic ellipsoid fit
+	//
+	// References:
+	// Qingde Li and John G. Griffiths, "Least Squares Ellipsoid Specific Fitting",
+	//    Proceedings of the Geometric Modeling and Processing, 2004.
+
+	// Matlab code reference => Copyright 2011 Levente Hunyadi
+
 	Eigen::MatrixXd d(xyz.rows(), 10);
 
 	d << xyz(Eigen::all, 0).pow(2).matrix()

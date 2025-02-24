@@ -24,6 +24,7 @@ if ( PLUGIN_G3POINT )
 		C:/Users/PaulLeroy/miniconda3/envs/env_4_CloudCompare/include
 		C:/opt/open3d-devel-windows-amd64-0.18.0/include
 		C:/opt/GeometricTools/GTE
+		C:/opt/boost_1_77_0
 	)
 	
 	# may be needed for debug

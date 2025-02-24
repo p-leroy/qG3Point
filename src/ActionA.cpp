@@ -1084,6 +1084,28 @@ double std_dev(const T &vec)
 	return std::sqrt((vec - vec.mean()).square().sum() / (vec.size() - 1));
 }
 
+void showWolman(const Eigen::ArrayXf& d_sample)
+{
+	// QCustomPlot
+	WolmanCustomPlot* wolmanCustomPlot = new WolmanCustomPlot();
+	QCPGraph* graph = wolmanCustomPlot->addGraph();
+	QVector<double> x_data(d_sample.size());
+	QVector<double> y_data(d_sample.size());
+	for (int k = 0; k < d_sample.size(); k++)
+	{
+		x_data[k] = d_sample(k);
+		y_data[k] = (static_cast<double>(k)) / static_cast<double>(d_sample.size());
+	}
+	std::sort(x_data.begin(), x_data.end());
+	graph->setData(x_data, y_data);
+	graph->rescaleAxes();
+	// give the axes some labels:
+	wolmanCustomPlot->xAxis->setScaleType(QCPAxis::stLogarithmic);
+	wolmanCustomPlot->xAxis->setLabel("Diameter [mm]");
+	wolmanCustomPlot->yAxis->setLabel("CDF");
+	wolmanCustomPlot->show();
+}
+
 bool G3PointAction::wolman()
 {
 	int n_iter = 10;
@@ -1219,24 +1241,147 @@ bool G3PointAction::wolman()
 							quant(d_sample, 0.5),
 							quant(d_sample, 0.9)};
 
-	// QCustomPlot
-	WolmanCustomPlot* wolmanCustomPlot = new WolmanCustomPlot();
-	QCPGraph* graph = wolmanCustomPlot->addGraph();
-	QVector<double> x_data(d_sample.size());
-	QVector<double> y_data(d_sample.size());
-	for (int k = 0; k < d_sample.size(); k++)
+	showWolman(d_sample);
+
+	return true;
+}
+
+//! Default number of classes for associated histogram
+static const unsigned MAX_HISTOGRAM_SIZE = 512;
+
+bool computeHistogram(const QVector<double>& data, QVector<double>& axis, QVector<double>& histogram)
+{
+	double minData = *std::min_element(data.begin(), data.end());
+	double maxData = *std::max_element(data.begin(), data.end());
+	double range = maxData - minData;
+
+	if (range == 0 || data.size() == 0)
 	{
-		x_data[k] = d_sample(k);
-		y_data[k] = (static_cast<double>(k)) / static_cast<double>(d_sample.size());
+		//can't build histogram of a flat field
+		return false;
 	}
-	std::sort(x_data.begin(), x_data.end());
-	graph->setData(x_data, y_data);
-	graph->rescaleAxes();
-	// give the axes some labels:
-	wolmanCustomPlot->xAxis->setScaleType(QCPAxis::stLogarithmic);
-	wolmanCustomPlot->xAxis->setLabel("Diameter [mm]");
-	wolmanCustomPlot->yAxis->setLabel("CDF");
-	wolmanCustomPlot->show();
+	else
+	{
+		unsigned count = data.size();
+		unsigned numberOfBins = static_cast<unsigned>(ceil(sqrt(static_cast<double>(count))));
+		// numberOfBins = std::max<unsigned>(std::min<unsigned>(numberOfBins, MAX_HISTOGRAM_SIZE), 4);
+		numberOfBins = 10;
+
+		axis.resize(numberOfBins);
+		for (int i = 0; i < numberOfBins; i++)
+		{
+			axis[i] = minData + i * range / numberOfBins;
+		}
+
+		//reserve memory
+		try
+		{
+			histogram.resize(numberOfBins);
+		}
+		catch (const std::bad_alloc&)
+		{
+			ccLog::Warning("[computeHistogram] Failed to allocate histogram!");
+		}
+
+		std::fill(histogram.begin(), histogram.end(), 0);
+
+		//compute histogram
+		ScalarType step = static_cast<ScalarType>(numberOfBins) / range;
+		for (unsigned i = 0; i < count; ++i)
+		{
+			const ScalarType& val = data[i];
+
+			if (CCCoreLib::ScalarField::ValidValue(val))
+			{
+				unsigned bin = static_cast<unsigned>((val - minData) * step);
+				++histogram[std::min(bin, numberOfBins - 1)];
+			}
+		}
+	}
+
+	return true;
+}
+
+void showHistogram(const QVector<double>& data)
+{
+	// QCustomPlot
+	WolmanCustomPlot* anglesCustomPlot = new WolmanCustomPlot();
+	QVector<double> axis;
+	QVector<double> histogram;
+	computeHistogram(data, axis, histogram);
+	QCPBars *regen = new QCPBars(anglesCustomPlot->xAxis, anglesCustomPlot->yAxis);
+	regen->setData(axis, histogram);
+	regen->rescaleAxes();
+	regen->setPen(QPen(QColor(0, 168, 140).lighter(130)));
+	regen->setBrush(QColor(0, 168, 140));
+	anglesCustomPlot->xAxis->setLabel("Azimut [°]");
+	anglesCustomPlot->yAxis->setLabel("Counts");
+	anglesCustomPlot->show();
+}
+
+bool G3PointAction::angles()
+{
+	if (m_grainsAsEllipsoids.isNull())
+	{
+		ccLog::Error("[G3PointAction::angles] no ellipsoid, not possible to do angles analysis");
+		return false;
+	}
+
+	float delta = 1e32;
+	int n_ellipsoids = m_grainsAsEllipsoids->m_rotationMatrix.size();
+	QVector<double> granuloAngleMView(n_ellipsoids);
+	QVector<double> granuloAngleXView(n_ellipsoids);
+
+	for (int i = 0; i < n_ellipsoids; i++)
+	{
+		float u, v, w;
+
+		Eigen::Vector3f p2 {m_grainsAsEllipsoids->m_rotationMatrix[i](0, 0),
+						   m_grainsAsEllipsoids->m_rotationMatrix[i](1, 0),
+						   m_grainsAsEllipsoids->m_rotationMatrix[i](2, 0)};
+
+		// x-y plot - mapview (angle with y axis)
+		Eigen::Vector3f p1 {m_grainsAsEllipsoids->m_center[i].x(),
+						   m_grainsAsEllipsoids->m_center[i].y() + delta,
+						   m_grainsAsEllipsoids->m_center[i].z()};
+		float angle = atan2(p1.cross(p2).norm(), p1.dot(p2));
+		u = p2(0);
+		v = p2(1);
+		if ((angle > M_PI / 2) || (angle < - M_PI / 2))
+		{
+			u = -u;
+			v = -v;
+		}
+		granuloAngleMView[i] = (atan(v / u) + M_PI / 2) * 180 / M_PI;
+
+		// x-z plot
+		p1 << m_grainsAsEllipsoids->m_center[i].x(),
+			m_grainsAsEllipsoids->m_center[i].y(),
+			m_grainsAsEllipsoids->m_center[i].z() + delta;
+		angle = atan2(p1.cross(p2).norm(), p1.dot(p2));
+		v = p2(0);
+		w = p2(1);
+		if ((angle > M_PI / 2) || (angle < - M_PI / 2))
+		{
+			v = -v;
+			w = -w;
+		}
+		granuloAngleXView[i] = (atan(v / w) + M_PI / 2) * 180 / M_PI;
+	}
+
+	// QCustomPlot
+	WolmanCustomPlot* anglesCustomPlot = new WolmanCustomPlot();
+	QVector<double> axis;
+	QVector<double> histogram;
+	computeHistogram(granuloAngleMView, axis, histogram);
+	QCPBars *regen = new QCPBars(anglesCustomPlot->xAxis, anglesCustomPlot->yAxis);
+	regen->setData(axis, histogram);
+	regen->rescaleAxes();
+	regen->setPen(QPen(QColor(0, 168, 140).lighter(130)));
+	regen->setBrush(QColor(0, 168, 140));
+	anglesCustomPlot->xAxis->setLabel("Azimut [°]");
+	anglesCustomPlot->yAxis->setLabel("Counts");
+	anglesCustomPlot->show();
 
 	return true;
 }
@@ -1872,6 +2017,7 @@ void G3PointAction::showDlg()
 		connect(m_dlg, &G3PointDialog::fit, s_g3PointAction.get(), &G3Point::G3PointAction::fit);
 		connect(m_dlg, &G3PointDialog::exportResults, s_g3PointAction.get(), &G3Point::G3PointAction::exportResults);
 		connect(m_dlg, &G3PointDialog::wolman, s_g3PointAction.get(), &G3Point::G3PointAction::wolman);
+		connect(m_dlg, &G3PointDialog::angles, s_g3PointAction.get(), &G3Point::G3PointAction::angles);
 
 		connect(m_dlg, &QDialog::finished, s_g3PointAction.get(), &G3Point::G3PointAction::clean);
 		connect(m_dlg, &QDialog::finished, s_g3PointAction.get(), &G3Point::G3PointAction::resetDlg); // dialog is defined with Qt::WA_DeleteOnClose
