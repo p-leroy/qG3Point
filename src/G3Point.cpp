@@ -35,7 +35,7 @@
 
 #include "G3Point.h"
 
-#include "ActionA.h"
+#include "G3PointAction.h"
 
 ccHObject* G3PointFactory::buildObject(const QString& metaName)
 {

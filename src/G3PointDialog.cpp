@@ -1,11 +1,11 @@
 #include "G3PointDialog.h"
-#include "ui_qG3PointDialog.h"
+#include "ui_G3PointDialog.h"
 
 #include <QSettings>
 
 G3PointDialog::G3PointDialog(QString cloudName, QWidget *parent)
 	: QDialog(parent)
-	, ui(new Ui::qG3PointDialog)
+	, ui(new Ui::G3PointDialog)
 {
 	ui->setupUi(this);
 
@@ -54,6 +54,12 @@ void G3PointDialog::readSettings()
 	// max angle 1
 	double maxAngle1 = settings.value("maxAngle1", 60).toDouble();
 	this->ui->doubleSpinBoxRadiusFactor->setValue(maxAngle1);
+	// wolmanNbIter
+	int wolmanNbIter = settings.value("wolmanNbIter", 20).toInt();
+	this->ui->spinBoxWolmanNbIter->setValue(wolmanNbIter);
+	// anglesNbBins
+	int anglesNbBins = settings.value("anglesNbBins", 10).toInt();
+	this->ui->spinBoxAnglesNbBins->setValue(anglesNbBins);
 }
 
 void G3PointDialog::writeSettings()
@@ -67,6 +73,10 @@ void G3PointDialog::writeSettings()
 	settings.setValue("radiusFactor", ui->doubleSpinBoxRadiusFactor->value());
 	// max angle 1
 	settings.setValue("maxAngle1", ui->doubleSpinBoxMaxAngle1->value());
+	// wolmanNbIter
+	settings.setValue("wolmanNbIter", ui->spinBoxWolmanNbIter->value());
+	// anglesNbBins
+	settings.setValue("anglesNbBins", ui->spinBoxAnglesNbBins->value());
 }
 
 double G3PointDialog::getMaxAngle1()
@@ -92,6 +102,23 @@ int G3PointDialog::getNMin()
 int G3PointDialog::getkNN()
 {
 	return this->ui->spinBoxkNN->value();
+}
+
+int G3PointDialog::getWolmanNbIter()
+{
+	return this->ui->spinBoxWolmanNbIter->value();
+}
+
+int G3PointDialog::getAnglesNbBins()
+{
+	if (this->ui->radioButtonAutoNbBins->isChecked())
+	{
+		return -1;
+	}
+	else
+	{
+		return this->ui->spinBoxAnglesNbBins->value();
+	}
 }
 
 double G3PointDialog::getRadiusFactor()

@@ -12,7 +12,7 @@
 #include <iostream>
 #include <fstream>
 
-#include <ActionA.h>
+#include <G3PointAction.h>
 
 // from GeometricTools/GTE
 // #include <Mathematics/DistPointHyperellipsoid.h>
@@ -29,6 +29,8 @@ GrainsAsEllipsoids::GrainsAsEllipsoids(ccMainAppInterface *app)
 
 	setShaderPath();
 }
+
+GrainsAsEllipsoids::~GrainsAsEllipsoids(){}
 
 GrainsAsEllipsoids::GrainsAsEllipsoids(ccPointCloud *cloud, ccMainAppInterface *app, const std::vector<std::vector<int> >& stacks, const RGBAColorsTableType& colors)
 	: m_cloud(cloud)
@@ -237,7 +239,9 @@ bool GrainsAsEllipsoids::exportResultsAsCloud()
 	cloud->showColors(true);
 	cloud->setPointSize(9);
 
-	m_cloud->getParent()->addChild(cloud, ccHObject::DP_PARENT_OF_OTHER, 0);
+	// m_cloud->getParent()->addChild(cloud, ccHObject::DP_PARENT_OF_OTHER, 0);
+	// m_app->addToDB(cloud);
+	m_cloud->addChild(cloud);
 	m_app->addToDB(cloud);
 
 	return true;

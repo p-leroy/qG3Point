@@ -1,5 +1,5 @@
-#ifndef QG3POINTDISCLAIMER_H
-#define QG3POINTDISCLAIMER_H
+#ifndef G3POINTDISCLAIMER_H
+#define G3POINTDISCLAIMER_H
 
 #include <QDialog>
 
@@ -9,13 +9,13 @@ namespace Ui {
 class G3PointDisclaimer;
 }
 
-class qG3PointDisclaimer : public QDialog
+class G3PointDisclaimer : public QDialog
 {
 	Q_OBJECT
 
 public:
-	explicit qG3PointDisclaimer(QWidget *parent = nullptr);
-	~qG3PointDisclaimer();
+	explicit G3PointDisclaimer(QWidget *parent = nullptr);
+	~G3PointDisclaimer();
 
 	static bool show(ccMainAppInterface* app);
 
@@ -26,4 +26,4 @@ private:
 	Ui::G3PointDisclaimer *ui;
 };
 
-#endif // QG3POINTDISCLAIMER_H
+#endif // G3POINTDISCLAIMER_H

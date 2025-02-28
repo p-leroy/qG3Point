@@ -1,4 +1,4 @@
-#include "ActionA.h"
+#include "G3PointAction.h"
 
 // CCPluginAPI
 #include <ccMainAppInterface.h>
@@ -42,12 +42,14 @@
 #include <set>
 
 #include <G3PointDialog.h>
-#include <qG3PointDisclaimer.h>
+#include <G3PointDisclaimer.h>
 #include <WolmanCustomPlot.h>
 
 namespace G3Point
 {
 std::shared_ptr<G3PointAction> G3PointAction::s_g3PointAction;
+
+std::shared_ptr<G3PointPlots> G3PointAction::s_g3PointPlots;
 
 G3PointAction::G3PointAction(ccPointCloud *cloud, ccMainAppInterface *app)
 	: m_app(app)
@@ -71,8 +73,10 @@ G3PointAction::~G3PointAction()
 void G3PointAction::GetG3PointAction(ccPointCloud *cloud, ccMainAppInterface *app)
 {
 	//disclaimer accepted?
-	if (!qG3PointDisclaimer::show(app))
+	if (!G3PointDisclaimer::show(app))
 		return;
+
+	s_g3PointPlots.reset(new G3PointPlots(cloud->getName()));
 
 	if (!s_g3PointAction) // create the singleton if needed
 	{
@@ -613,8 +617,12 @@ bool G3PointAction::exportLocalMaximaAsCloud(const Eigen::ArrayXi& localMaximumI
 		m_app->removeFromDB(child, true);
 	}
 
-	parent->addChild(cloud, ccHObject::DP_PARENT_OF_OTHER, 0);
+	// parent->addChild(cloud, ccHObject::DP_PARENT_OF_OTHER, 0);
+	// m_app->addToDB(cloud);
+	m_cloud->addChild(cloud);
 	m_app->addToDB(cloud);
+
+
 	cloud->setEnabled(false);
 
 	return true;
@@ -1008,24 +1016,26 @@ void G3PointAction::fit()
 
 	// plot display grains as ellipsoids
 	m_grainColors.reset(new RGBAColorsTableType(getRandomColors(m_localMaximumIndexes.size())));
-	m_grainsAsEllipsoids.reset(new GrainsAsEllipsoids(m_cloud, m_app, m_stacks, *m_grainColors));
+	m_grainsAsEllipsoids = new GrainsAsEllipsoids(m_cloud, m_app, m_stacks, *m_grainColors);
 	m_grainsAsEllipsoids->setName("g3point_ellipsoids");
 
 	// add connections with the dialog
-	connect(m_dlg, &G3PointDialog::onlyOneClicked, m_grainsAsEllipsoids.data(), &GrainsAsEllipsoids::showOnlyOne);
-	connect(m_dlg, &G3PointDialog::allClicked, m_grainsAsEllipsoids.data(), &GrainsAsEllipsoids::showAll);
-	connect(m_dlg, &G3PointDialog::onlyOneChanged, m_grainsAsEllipsoids.data(), &GrainsAsEllipsoids::setOnlyOne);
-	connect(m_dlg, &G3PointDialog::transparencyChanged, m_grainsAsEllipsoids.data(), &GrainsAsEllipsoids::setTransparency);
-	connect(m_dlg, &G3PointDialog::drawSurfaces, m_grainsAsEllipsoids.data(), &GrainsAsEllipsoids::drawSurfaces);
-	connect(m_dlg, &G3PointDialog::drawLines, m_grainsAsEllipsoids.data(), &GrainsAsEllipsoids::drawLines);
-	connect(m_dlg, &G3PointDialog::drawPoints, m_grainsAsEllipsoids.data(), &GrainsAsEllipsoids::drawPoints);
-	connect(m_dlg, &G3PointDialog::glPointSize, m_grainsAsEllipsoids.data(), &GrainsAsEllipsoids::setGLPointSize);
+	connect(m_dlg, &G3PointDialog::onlyOneClicked, m_grainsAsEllipsoids, &GrainsAsEllipsoids::showOnlyOne);
+	connect(m_dlg, &G3PointDialog::allClicked, m_grainsAsEllipsoids, &GrainsAsEllipsoids::showAll);
+	connect(m_dlg, &G3PointDialog::onlyOneChanged, m_grainsAsEllipsoids, &GrainsAsEllipsoids::setOnlyOne);
+	connect(m_dlg, &G3PointDialog::transparencyChanged, m_grainsAsEllipsoids, &GrainsAsEllipsoids::setTransparency);
+	connect(m_dlg, &G3PointDialog::drawSurfaces, m_grainsAsEllipsoids, &GrainsAsEllipsoids::drawSurfaces);
+	connect(m_dlg, &G3PointDialog::drawLines, m_grainsAsEllipsoids, &GrainsAsEllipsoids::drawLines);
+	connect(m_dlg, &G3PointDialog::drawPoints, m_grainsAsEllipsoids, &GrainsAsEllipsoids::drawPoints);
+	connect(m_dlg, &G3PointDialog::glPointSize, m_grainsAsEllipsoids, &GrainsAsEllipsoids::setGLPointSize);
 
 	m_dlg->setOnlyOneMax(m_stacks.size());
 	m_dlg->emitSignals(); // force to send parameters to m_grainsAsEllipsoids
 
-	m_cloud->getParent()->addChild(m_grainsAsEllipsoids.data());
-	m_app->addToDB(m_cloud);
+	// m_cloud->getParent()->addChild(m_grainsAsEllipsoids.get());
+	// m_app->addToDB(m_cloud);
+	m_cloud->addChild(m_grainsAsEllipsoids);
+	m_app->addToDB(m_grainsAsEllipsoids);
 
 	m_app->updateUI();
 }
@@ -1084,33 +1094,25 @@ double std_dev(const T &vec)
 	return std::sqrt((vec - vec.mean()).square().sum() / (vec.size() - 1));
 }
 
-void showWolman(const Eigen::ArrayXf& d_sample)
+void G3PointAction::plots()
+{
+	angles();
+}
+
+void G3PointAction::showWolman(const Eigen::ArrayXf& d_sample)
 {
 	// QCustomPlot
-	WolmanCustomPlot* wolmanCustomPlot = new WolmanCustomPlot();
-	QCPGraph* graph = wolmanCustomPlot->addGraph();
-	QVector<double> x_data(d_sample.size());
-	QVector<double> y_data(d_sample.size());
-	for (int k = 0; k < d_sample.size(); k++)
-	{
-		x_data[k] = d_sample(k);
-		y_data[k] = (static_cast<double>(k)) / static_cast<double>(d_sample.size());
-	}
-	std::sort(x_data.begin(), x_data.end());
-	graph->setData(x_data, y_data);
-	graph->rescaleAxes();
-	// give the axes some labels:
-	wolmanCustomPlot->xAxis->setScaleType(QCPAxis::stLogarithmic);
-	wolmanCustomPlot->xAxis->setLabel("Diameter [mm]");
-	wolmanCustomPlot->yAxis->setLabel("CDF");
-	wolmanCustomPlot->show();
+	if (!s_g3PointPlots)
+		s_g3PointPlots.reset(new G3PointPlots(m_cloud->getName()));
+	s_g3PointPlots->addToTabWidget(new WolmanCustomPlot(d_sample));
+	s_g3PointPlots->show();
 }
 
 bool G3PointAction::wolman()
 {
-	int n_iter = 10;
+	int n_iter = m_dlg->getWolmanNbIter();
 
-	if (m_grainsAsEllipsoids.isNull())
+	if (!m_grainsAsEllipsoids)
 	{
 		ccLog::Error("[G3PointAction::wolman] no ellipsoid, not possible to do Wolman analysis");
 		return false;
@@ -1169,7 +1171,7 @@ bool G3PointAction::wolman()
 	{
 		float r0 = dist(urbg);
 		float r1 = dist(urbg);
-		std::cout << r0 << ", " << r1 << "," << std::endl;
+		// std::cout << r0 << ", " << r1 << "," << std::endl;
 		x_grid = arange(x.minCoeff() - r0 * dx, x.maxCoeff(), dx);
 		y_grid = arange(y.minCoeff() - r1 * dx, y.maxCoeff(), dx);
 		int nx = x_grid.size();
@@ -1246,93 +1248,20 @@ bool G3PointAction::wolman()
 	return true;
 }
 
-//! Default number of classes for associated histogram
-static const unsigned MAX_HISTOGRAM_SIZE = 512;
-
-bool computeHistogram(const QVector<double>& data, QVector<double>& axis, QVector<double>& histogram)
-{
-	double minData = *std::min_element(data.begin(), data.end());
-	double maxData = *std::max_element(data.begin(), data.end());
-	double range = maxData - minData;
-
-	if (range == 0 || data.size() == 0)
-	{
-		//can't build histogram of a flat field
-		return false;
-	}
-	else
-	{
-		unsigned count = data.size();
-		unsigned numberOfBins = static_cast<unsigned>(ceil(sqrt(static_cast<double>(count))));
-		// numberOfBins = std::max<unsigned>(std::min<unsigned>(numberOfBins, MAX_HISTOGRAM_SIZE), 4);
-		numberOfBins = 10;
-
-		axis.resize(numberOfBins);
-		for (int i = 0; i < numberOfBins; i++)
-		{
-			axis[i] = minData + i * range / numberOfBins;
-		}
-
-		//reserve memory
-		try
-		{
-			histogram.resize(numberOfBins);
-		}
-		catch (const std::bad_alloc&)
-		{
-			ccLog::Warning("[computeHistogram] Failed to allocate histogram!");
-		}
-
-		std::fill(histogram.begin(), histogram.end(), 0);
-
-		//compute histogram
-		ScalarType step = static_cast<ScalarType>(numberOfBins) / range;
-		for (unsigned i = 0; i < count; ++i)
-		{
-			const ScalarType& val = data[i];
-
-			if (CCCoreLib::ScalarField::ValidValue(val))
-			{
-				unsigned bin = static_cast<unsigned>((val - minData) * step);
-				++histogram[std::min(bin, numberOfBins - 1)];
-			}
-		}
-	}
-
-	return true;
-}
-
-void showHistogram(const QVector<double>& data)
-{
-	// QCustomPlot
-	WolmanCustomPlot* anglesCustomPlot = new WolmanCustomPlot();
-	QVector<double> axis;
-	QVector<double> histogram;
-	computeHistogram(data, axis, histogram);
-	QCPBars *regen = new QCPBars(anglesCustomPlot->xAxis, anglesCustomPlot->yAxis);
-	regen->setData(axis, histogram);
-	regen->rescaleAxes();
-	regen->setPen(QPen(QColor(0, 168, 140).lighter(130)));
-	regen->setBrush(QColor(0, 168, 140));
-	anglesCustomPlot->xAxis->setLabel("Azimut [°]");
-	anglesCustomPlot->yAxis->setLabel("Counts");
-	anglesCustomPlot->show();
-}
-
 bool G3PointAction::angles()
 {
-	if (m_grainsAsEllipsoids.isNull())
+	if (!m_grainsAsEllipsoids)
 	{
 		ccLog::Error("[G3PointAction::angles] no ellipsoid, not possible to do angles analysis");
 		return false;
 	}
 
 	float delta = 1e32;
-	int n_ellipsoids = m_grainsAsEllipsoids->m_rotationMatrix.size();
+	size_t n_ellipsoids = m_grainsAsEllipsoids->m_rotationMatrix.size();
 	QVector<double> granuloAngleMView(n_ellipsoids);
 	QVector<double> granuloAngleXView(n_ellipsoids);
 
-	for (int i = 0; i < n_ellipsoids; i++)
+	for (size_t i = 0; i < n_ellipsoids; i++)
 	{
 		float u, v, w;
 
@@ -1370,18 +1299,12 @@ bool G3PointAction::angles()
 	}
 
 	// QCustomPlot
-	WolmanCustomPlot* anglesCustomPlot = new WolmanCustomPlot();
-	QVector<double> axis;
-	QVector<double> histogram;
-	computeHistogram(granuloAngleMView, axis, histogram);
-	QCPBars *regen = new QCPBars(anglesCustomPlot->xAxis, anglesCustomPlot->yAxis);
-	regen->setData(axis, histogram);
-	regen->rescaleAxes();
-	regen->setPen(QPen(QColor(0, 168, 140).lighter(130)));
-	regen->setBrush(QColor(0, 168, 140));
-	anglesCustomPlot->xAxis->setLabel("Azimut [°]");
-	anglesCustomPlot->yAxis->setLabel("Counts");
-	anglesCustomPlot->show();
+	if (!s_g3PointPlots)
+		s_g3PointPlots.reset(new G3PointPlots(m_cloud->getName()));
+	int nbBins = m_dlg->getAnglesNbBins();
+	s_g3PointPlots->addToTabWidget(new AnglesCustomPlot(granuloAngleMView, "Azimut", nbBins));
+	s_g3PointPlots->addToTabWidget(new AnglesCustomPlot(granuloAngleXView, "Dip", nbBins));
+	s_g3PointPlots->show();
 
 	return true;
 }
@@ -2017,7 +1940,7 @@ void G3PointAction::showDlg()
 		connect(m_dlg, &G3PointDialog::fit, s_g3PointAction.get(), &G3Point::G3PointAction::fit);
 		connect(m_dlg, &G3PointDialog::exportResults, s_g3PointAction.get(), &G3Point::G3PointAction::exportResults);
 		connect(m_dlg, &G3PointDialog::wolman, s_g3PointAction.get(), &G3Point::G3PointAction::wolman);
-		connect(m_dlg, &G3PointDialog::angles, s_g3PointAction.get(), &G3Point::G3PointAction::angles);
+		connect(m_dlg, &G3PointDialog::angles, s_g3PointAction.get(), &G3Point::G3PointAction::plots);
 
 		connect(m_dlg, &QDialog::finished, s_g3PointAction.get(), &G3Point::G3PointAction::clean);
 		connect(m_dlg, &QDialog::finished, s_g3PointAction.get(), &G3Point::G3PointAction::resetDlg); // dialog is defined with Qt::WA_DeleteOnClose
@@ -2116,7 +2039,11 @@ bool G3PointAction::setCloud(ccPointCloud *cloud)
 					 + QString::number(nPointsInGrains) + "/" + QString::number(cloud->size())
 					 + " points belonging to " + QString::number(newStacks.size()) + " grains");
 
+		std::cout << "[d] processNewStacks" << std::endl;
+
 		processNewStacks(newStacks, nPointsInGrains);
+
+		std::cout << "[e]" << std::endl;
 	}
 
 	return true;
@@ -2125,7 +2052,6 @@ bool G3PointAction::setCloud(ccPointCloud *cloud)
 void G3PointAction::setKNN()
 {
 	m_kNN = m_dlg->getkNN();
-	std::cout << "kNN " << m_kNN << std::endl;
 }
 
 void G3PointAction::createAction(ccMainAppInterface *appInterface)

@@ -34,6 +34,7 @@ public:
 	GrainsAsEllipsoids(ccMainAppInterface *app);
 
 	GrainsAsEllipsoids(ccPointCloud *cloud, ccMainAppInterface* app, const std::vector<std::vector<int> >& stacks, const RGBAColorsTableType& colors);
+	~GrainsAsEllipsoids();
 
 	//! Set the path for shaders
 	void setShaderPath();

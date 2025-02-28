@@ -11,6 +11,10 @@
 
 #include <GrainsAsEllipsoids.h>
 
+#include <AnglesCustomPlot.h>
+
+#include <G3PointPlots.h>
+
 #pragma once
 
 class ccMainAppInterface;
@@ -36,6 +40,8 @@ public:
 	bool cluster();
 	void fit();
 	void exportResults();
+	void plots();
+	void showWolman(const Eigen::ArrayXf& d_sample);
 	bool wolman();
 	bool angles();
 	bool processNewStacks(std::vector<std::vector<int>>& newStacks, int pointCount);
@@ -107,6 +113,8 @@ private:
 
 	static std::shared_ptr<G3PointAction> s_g3PointAction;
 
-	QSharedPointer<GrainsAsEllipsoids> m_grainsAsEllipsoids;
+	static std::shared_ptr<G3PointPlots> s_g3PointPlots;
+
+	GrainsAsEllipsoids* m_grainsAsEllipsoids;
 };
 }

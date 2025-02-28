@@ -4,7 +4,7 @@
 #include <QDialog>
 
 namespace Ui {
-class qG3PointDialog;
+class G3PointDialog;
 }
 
 class G3PointDialog : public QDialog
@@ -43,6 +43,8 @@ public:
 	double getMinFlatness();
 	int getNMin();
 	int getkNN();
+	int getWolmanNbIter();
+	int getAnglesNbBins();
 	double getRadiusFactor();
 
 	bool isSteepestSlope();
@@ -73,7 +75,7 @@ signals:
 	void glPointSize(int size);
 
 private:
-	Ui::qG3PointDialog *ui;
+	Ui::G3PointDialog *ui;
 };
 
 #endif // QG3POINTDIALOG_H

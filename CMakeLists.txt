@@ -11,7 +11,12 @@ if ( PLUGIN_G3POINT )
 	 
 	AddPlugin( NAME ${PROJECT_NAME} )
 
-	set(QG3POINT_PLUGIN_VERSION "0.3+")
+target_sources(G3PointPlugin
+  PRIVATE
+    ui/WolmanCustomPlot.ui
+)
+
+	set(QG3POINT_PLUGIN_VERSION "0.4")
 
 	add_subdirectory( include )
 	add_subdirectory( src )

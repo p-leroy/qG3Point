@@ -1,5 +1,5 @@
-#include "qG3PointDisclaimer.h"
-#include "ui_qG3PointDisclaimer.h"
+#include "G3PointDisclaimer.h"
+#include "ui_G3PointDisclaimer.h"
 
 //qCC_plugins
 #include <ccMainAppInterface.h>
@@ -7,9 +7,9 @@
 //Qt
 #include <QMainWindow>
 
-bool qG3PointDisclaimer::s_disclaimerAccepted = false;
+bool G3PointDisclaimer::s_disclaimerAccepted = false;
 
-qG3PointDisclaimer::qG3PointDisclaimer(QWidget *parent)
+G3PointDisclaimer::G3PointDisclaimer(QWidget *parent)
 	: QDialog(parent)
 	, ui(new Ui::G3PointDisclaimer)
 {
@@ -34,17 +34,17 @@ qG3PointDisclaimer::qG3PointDisclaimer(QWidget *parent)
 	ui->labelCompilationInformation->setText(compilationInfo);
 }
 
-qG3PointDisclaimer::~qG3PointDisclaimer()
+G3PointDisclaimer::~G3PointDisclaimer()
 {
 	delete ui;
 }
 
-bool qG3PointDisclaimer::show(ccMainAppInterface *app)
+bool G3PointDisclaimer::show(ccMainAppInterface *app)
 {
 	if ( !s_disclaimerAccepted )
 	{
 		//if the user "cancels" it, then he refuses the disclaimer
-		s_disclaimerAccepted = qG3PointDisclaimer(app ? app->getMainWindow() : 0).exec();
+		s_disclaimerAccepted = G3PointDisclaimer(app ? app->getMainWindow() : 0).exec();
 	}
 
 	return s_disclaimerAccepted;

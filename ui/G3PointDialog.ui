@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>qG3PointDialog</class>
- <widget class="QDialog" name="qG3PointDialog">
+ <class>G3PointDialog</class>
+ <widget class="QDialog" name="G3PointDialog">
   <property name="geometry">
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>357</width>
+    <width>384</width>
     <height>608</height>
    </rect>
   </property>
@@ -347,24 +347,95 @@
         </widget>
        </item>
        <item>
-        <widget class="QPushButton" name="pushButtonExportResults">
-         <property name="text">
-          <string>Export results</string>
+        <widget class="QGroupBox" name="groupBox_6">
+         <property name="title">
+          <string>Outputs</string>
          </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QPushButton" name="pushButtonWolman">
-         <property name="text">
-          <string>Wolman</string>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QPushButton" name="pushButtonAngles">
-         <property name="text">
-          <string>Angles</string>
-         </property>
+         <layout class="QGridLayout" name="gridLayout" columnstretch="1,0,0,0,0,0">
+          <item row="3" column="0" colspan="6">
+           <widget class="QPushButton" name="pushButtonExportResults">
+            <property name="text">
+             <string>Export results as a cloud</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="0" colspan="2">
+           <widget class="QPushButton" name="pushButtonAngles">
+            <property name="text">
+             <string>Angles</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="2">
+           <widget class="QLabel" name="label_8">
+            <property name="font">
+             <font>
+              <bold>false</bold>
+             </font>
+            </property>
+            <property name="text">
+             <string>Nb bins:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="3">
+           <widget class="QRadioButton" name="radioButtonAutoNbBins">
+            <property name="text">
+             <string>Auto</string>
+            </property>
+            <property name="checked">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="4">
+           <widget class="QRadioButton" name="radioButtonFixNbBins">
+            <property name="text">
+             <string>Fix</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="5">
+           <widget class="QSpinBox" name="spinBoxAnglesNbBins">
+            <property name="buttonSymbols">
+             <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
+            </property>
+            <property name="minimum">
+             <number>10</number>
+            </property>
+            <property name="maximum">
+             <number>512</number>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="5">
+           <widget class="QSpinBox" name="spinBoxWolmanNbIter">
+            <property name="buttonSymbols">
+             <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
+            </property>
+            <property name="minimum">
+             <number>3</number>
+            </property>
+            <property name="maximum">
+             <number>1000000</number>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="4">
+           <widget class="QLabel" name="label_3">
+            <property name="text">
+             <string>Nb iterations</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0" colspan="4">
+           <widget class="QPushButton" name="pushButtonWolman">
+            <property name="text">
+             <string>Wolman</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
         </widget>
        </item>
        <item>
