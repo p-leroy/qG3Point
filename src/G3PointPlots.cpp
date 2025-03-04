@@ -55,6 +55,20 @@ void G3PointPlots::addToTabWidget(QWidget* widget)
 {
 	this->ui->tabWidget->addTab(widget, widget->windowTitle());
 	this->ui->tabWidget->setCurrentWidget(widget);
+
+	if (widget->property("TypeOfCustomPlot").toString() == "AnglesCustomPlot")
+	{
+		connect(static_cast<AnglesCustomPlot*>(widget), &AnglesCustomPlot::closeTab, this, &G3PointPlots::closeCurrentWidget);
+	}
+	else if (widget->property("TypeOfCustomPlot").toString() == "WolmanCustomPlot")
+	{
+		connect(static_cast<WolmanCustomPlot*>(widget), &WolmanCustomPlot::closeTab, this, &G3PointPlots::closeCurrentWidget);
+	}
+}
+
+void G3PointPlots::closeCurrentWidget()
+{
+	this->ui->tabWidget->currentWidget()->deleteLater();
 }
 
 template<typename SharedDataContainer>

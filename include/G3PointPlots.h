@@ -21,6 +21,8 @@ public:
 
 	void addToTabWidget(QWidget* widget);
 
+	void closeCurrentWidget();
+
 	template<typename SharedDataContainer>
 	bool exportToCSV(QString filename, SharedDataContainer container) const;
 

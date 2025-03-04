@@ -113,8 +113,12 @@ private:
 
 	static std::shared_ptr<G3PointAction> s_g3PointAction;
 
-	static std::shared_ptr<G3PointPlots> s_g3PointPlots;
+	static QPointer<G3PointPlots> s_g3PointPlots;
 
 	GrainsAsEllipsoids* m_grainsAsEllipsoids;
+
+	std::unique_ptr<QProgressBar> m_progress;
+
+	int m_currentNumberOfSteps;
 };
 }

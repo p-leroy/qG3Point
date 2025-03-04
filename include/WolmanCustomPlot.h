@@ -64,14 +64,22 @@ protected:
 
 };
 
-class WolmanCustomPlot : public QWidget
+class WolmanCustomPlot : public QCustomPlot
 {
+	Q_OBJECT
 public:
 	WolmanCustomPlot(const Eigen::ArrayXf& d_sample);
 
 	QSharedPointer<QCPGraphDataContainer> dataContainer(){return m_graph->data();}
 
 	QCPGraph* m_graph;
+
+	void emitCloseTab(){emit closeTab();}
+
+	void mousePressEvent(QMouseEvent* event) override;
+
+signals:
+	void closeTab();
 
 private:
 	Ui::WolmanCustomPlot *ui;

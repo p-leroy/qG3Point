@@ -10,7 +10,7 @@ WolmanCustomPlot::WolmanCustomPlot(const Eigen::ArrayXf &d_sample):
 
 	setWindowTitle("Wolman");
 
-	m_graph = this->ui->customPlot->addGraph();
+	m_graph = this->addGraph();
 	QVector<double> x_data(d_sample.size());
 	QVector<double> y_data(d_sample.size());
 	for (int k = 0; k < d_sample.size(); k++)
@@ -22,7 +22,20 @@ WolmanCustomPlot::WolmanCustomPlot(const Eigen::ArrayXf &d_sample):
 	m_graph->setData(x_data, y_data);
 	m_graph->rescaleAxes();
 	// give the axes some labels:
-	this->ui->customPlot->xAxis->setScaleType(QCPAxis::stLogarithmic);
-	this->ui->customPlot->xAxis->setLabel("Diameter [mm]");
-	this->ui->customPlot->yAxis->setLabel("CDF");
+	this->xAxis->setScaleType(QCPAxis::stLogarithmic);
+	this->xAxis->setLabel("Diameter [mm]");
+	this->yAxis->setLabel("CDF");
+}
+
+void WolmanCustomPlot::mousePressEvent(QMouseEvent *event)
+{
+	if (event->button() == Qt::RightButton)
+	{
+		QMenu* menu = new QMenu(this);
+		QAction* action = new QAction("Close tab");
+		menu->addAction(action);
+		connect(action, &QAction::triggered, this, &WolmanCustomPlot::emitCloseTab);
+		menu->popup(event->globalPos());
+	}
+	QCustomPlot::mousePressEvent(event);
 }

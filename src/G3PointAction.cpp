@@ -49,11 +49,12 @@ namespace G3Point
 {
 std::shared_ptr<G3PointAction> G3PointAction::s_g3PointAction;
 
-std::shared_ptr<G3PointPlots> G3PointAction::s_g3PointPlots;
+QPointer<G3PointPlots> G3PointAction::s_g3PointPlots;
 
 G3PointAction::G3PointAction(ccPointCloud *cloud, ccMainAppInterface *app)
 	: m_app(app)
 	, m_dlg(nullptr)
+	, m_grainsAsEllipsoids(nullptr)
 {
 	assert(cloud);
 	setCloud(cloud);
@@ -76,7 +77,7 @@ void G3PointAction::GetG3PointAction(ccPointCloud *cloud, ccMainAppInterface *ap
 	if (!G3PointDisclaimer::show(app))
 		return;
 
-	s_g3PointPlots.reset(new G3PointPlots(cloud->getName()));
+	s_g3PointPlots = new G3PointPlots(cloud->getName());
 
 	if (!s_g3PointAction) // create the singleton if needed
 	{
@@ -99,7 +100,7 @@ void G3PointAction::GetG3PointAction(ccPointCloud *cloud, ccMainAppInterface *ap
 	s_g3PointAction->showDlg();
 }
 
-RGBAColorsTableType getRandomColors(int randomColorsNumber)
+RGBAColorsTableType getRandomColors(size_t randomColorsNumber)
 {
 	Q_ASSERT(randomColorsNumber > 1);
 
@@ -532,11 +533,12 @@ bool G3PointAction::updateLabelsAndColors()
 		return false;
 	}
 
-	for (int index = 0; index < m_cloud->size(); index++)  // points which are not in the stacks will have the label -1
+	for (unsigned index = 0; index < m_cloud->size(); index++)  // points which are not in the stacks will have the label -1
 	{
 		g3point_label->setValue(index, -1);
-		m_labels = -1;
 	}
+
+	m_labels = -1;
 
 	for (int k = 0; k < m_stacks.size(); k++)
 	{
@@ -1103,7 +1105,7 @@ void G3PointAction::showWolman(const Eigen::ArrayXf& d_sample)
 {
 	// QCustomPlot
 	if (!s_g3PointPlots)
-		s_g3PointPlots.reset(new G3PointPlots(m_cloud->getName()));
+		s_g3PointPlots = new G3PointPlots(m_cloud->getName());
 	s_g3PointPlots->addToTabWidget(new WolmanCustomPlot(d_sample));
 	s_g3PointPlots->show();
 }
@@ -1300,7 +1302,7 @@ bool G3PointAction::angles()
 
 	// QCustomPlot
 	if (!s_g3PointPlots)
-		s_g3PointPlots.reset(new G3PointPlots(m_cloud->getName()));
+		s_g3PointPlots = new G3PointPlots(m_cloud->getName());
 	int nbBins = m_dlg->getAnglesNbBins();
 	s_g3PointPlots->addToTabWidget(new AnglesCustomPlot(granuloAngleMView, "Azimut", nbBins));
 	s_g3PointPlots->addToTabWidget(new AnglesCustomPlot(granuloAngleXView, "Dip", nbBins));
@@ -2008,42 +2010,57 @@ bool G3PointAction::setCloud(ccPointCloud *cloud)
 		CCCoreLib::ScalarField* g3PointLabelBackupSF = m_cloud->getScalarField(sfIdxBackup);
 
 		// get the set of labels
-		std::set<int> labels;
+		std::set<ScalarType> labelsSet;
 		for (unsigned int index = 0; index < m_cloud->size(); index++)
 		{
-			labels.insert(g3PointLabelSF->getValue(index));
+			labelsSet.insert(g3PointLabelSF->getValue(index));
+		}
+		// remove -1 from the set
+		labelsSet.erase(-1);
+		// build a map to handle cases were g3point_label is not a regular range with step 1
+		// keys = labels
+		// values = index
+		std::map<ScalarType, int> labelsMap;
+		int index = 0;
+		for (auto label : labelsSet)
+		{
+			labelsMap[label] = index;
+			index++;
 		}
 
 		// build stacks from g3point_index
-		std::map<ScalarType, std::vector<int>> labelStackMap;
 		int nPointsInGrains = 0;
+		m_progress.reset(new QProgressBar());
+		m_progress->setRange(0, m_cloud->size());
+		m_progress->setWindowTitle("Processing g3point_label");
+		m_progress->show();
+
+		std::vector<std::vector<int>> newStacks(labelsSet.size());
+
 		for (unsigned int index = 0; index < m_cloud->size(); index++)
 		{
 			ScalarType label = g3PointLabelSF->getValue(index);
 			g3PointLabelBackupSF->setValue(index, label); // save the originale G3Point label
 			if (label != -1)  // -1 is a generic index corresponding to all points which do not belong to valid grains
 			{
-				labelStackMap[label].push_back(index);
+				newStacks[labelsMap[label]].push_back(index);
 				nPointsInGrains++;
+			}
+			if (index % 20 == 0)
+			{
+				m_progress->setValue(index);
+				QApplication::processEvents();
 			}
 		}
 
-		// initialize m_stacks
-		std::vector<std::vector<int>> newStacks;
-		for (const auto& item : labelStackMap)
-		{
-			newStacks.push_back(item.second);
-		}
+		m_progress->hide();
+		QApplication::processEvents();
 
 		ccLog::Print("[G3PointAction::setCloud] g3point_label available, found "
 					 + QString::number(nPointsInGrains) + "/" + QString::number(cloud->size())
 					 + " points belonging to " + QString::number(newStacks.size()) + " grains");
 
-		std::cout << "[d] processNewStacks" << std::endl;
-
 		processNewStacks(newStacks, nPointsInGrains);
-
-		std::cout << "[e]" << std::endl;
 	}
 
 	return true;
