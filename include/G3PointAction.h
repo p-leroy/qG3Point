@@ -41,7 +41,7 @@ public:
 	void fit();
 	void exportResults();
 	void plots();
-	void showWolman(const Eigen::ArrayXf& d_sample);
+	void showWolman(const Eigen::ArrayXf& d_sample, const Eigen::Array3d &dq_final, const Eigen::Array3d &edq);
 	bool wolman();
 	bool angles();
 	bool processNewStacks(std::vector<std::vector<int>>& newStacks, int pointCount);
@@ -116,8 +116,6 @@ private:
 	static QPointer<G3PointPlots> s_g3PointPlots;
 
 	GrainsAsEllipsoids* m_grainsAsEllipsoids;
-
-	std::unique_ptr<QProgressBar> m_progress;
 
 	int m_currentNumberOfSteps;
 };

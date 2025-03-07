@@ -1075,10 +1075,11 @@ void myPrint(QString name, T array)
 // Hyndman and Fan, 1996) R. J. Hyndman and Y. Fan, “Sample quantiles in statistical packages”,
 // The American Statistician, 50(4), pp. 361-365, 1996
 template <typename T1, typename T2>
-typename T1::value_type quant(const T1 &x, T2 q)
+typename T1::value_type quant(T1& x, const T2& q)
 {
 	assert(q >= 0.0 && q <= 1.0);
 
+	std::sort(x.begin(), x.end());
 	const auto n  = x.size();
 	const auto id = (n - 1) * q;
 	const auto lo = floor(id);
@@ -1101,12 +1102,12 @@ void G3PointAction::plots()
 	angles();
 }
 
-void G3PointAction::showWolman(const Eigen::ArrayXf& d_sample)
+void G3PointAction::showWolman(const Eigen::ArrayXf& d_sample, const Eigen::Array3d& dq_final, const Eigen::Array3d& edq)
 {
 	// QCustomPlot
 	if (!s_g3PointPlots)
 		s_g3PointPlots = new G3PointPlots(m_cloud->getName());
-	s_g3PointPlots->addToTabWidget(new WolmanCustomPlot(d_sample));
+	s_g3PointPlots->addToTabWidget(new WolmanCustomPlot(d_sample, dq_final, edq));
 	s_g3PointPlots->show();
 }
 
@@ -1171,6 +1172,10 @@ bool G3PointAction::wolman()
 #endif
 	for (int k = 0; k < n_iter; k++)
 	{
+		if (k % 20 == 0)
+		{
+			std::cout << k << std::endl;
+		}
 		float r0 = dist(urbg);
 		float r1 = dist(urbg);
 		// std::cout << r0 << ", " << r1 << "," << std::endl;
@@ -1185,7 +1190,6 @@ bool G3PointAction::wolman()
 			for (int iy = 0; iy < ny; iy++)
 			{
 				distances = ((x - x_grid(ix)).pow(2) + (y - y_grid(iy)).pow(2)).sqrt();
-
 				dist(ix, iy) = distances.minCoeff(&minLoc);
 				iWolman(ix, iy) = minLoc;
 			}
@@ -1245,7 +1249,7 @@ bool G3PointAction::wolman()
 							quant(d_sample, 0.5),
 							quant(d_sample, 0.9)};
 
-	showWolman(d_sample);
+	showWolman(d_sample, dq_final, edq);
 
 	return true;
 }
@@ -2030,10 +2034,10 @@ bool G3PointAction::setCloud(ccPointCloud *cloud)
 
 		// build stacks from g3point_index
 		int nPointsInGrains = 0;
-		m_progress.reset(new QProgressBar());
-		m_progress->setRange(0, m_cloud->size());
-		m_progress->setWindowTitle("Processing g3point_label");
-		m_progress->show();
+		std::unique_ptr<QProgressBar> progress(new QProgressBar());
+		progress->setRange(0, m_cloud->size());
+		progress->setWindowTitle("Processing g3point_label");
+		progress->show();
 
 		std::vector<std::vector<int>> newStacks(labelsSet.size());
 
@@ -2048,12 +2052,12 @@ bool G3PointAction::setCloud(ccPointCloud *cloud)
 			}
 			if (index % 20 == 0)
 			{
-				m_progress->setValue(index);
+				progress->setValue(index);
 				QApplication::processEvents();
 			}
 		}
 
-		m_progress->hide();
+		progress->hide();
 		QApplication::processEvents();
 
 		ccLog::Print("[G3PointAction::setCloud] g3point_label available, found "

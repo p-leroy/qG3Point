@@ -68,13 +68,21 @@ class WolmanCustomPlot : public QCustomPlot
 {
 	Q_OBJECT
 public:
-	WolmanCustomPlot(const Eigen::ArrayXf& d_sample);
+	WolmanCustomPlot(const Eigen::ArrayXf& d_sample, const Eigen::Array3d& dq_final, const Eigen::Array3d& edq);
 
 	QSharedPointer<QCPGraphDataContainer> dataContainer(){return m_graph->data();}
 
+	Eigen::Array3d m_dq_final;
+
+	Eigen::Array3d m_edq;
+
 	QCPGraph* m_graph;
 
+	void rescale();
+
 	void emitCloseTab(){emit closeTab();}
+
+	void mouseDoubleClickEvent(QMouseEvent* event) override;
 
 	void mousePressEvent(QMouseEvent* event) override;
 

@@ -5,6 +5,9 @@
 
 #include <qcustomplot.h>
 
+// Eigen
+#include <Eigen/Geometry>
+
 namespace Ui {
 class G3PointPlots;
 }
@@ -24,7 +27,7 @@ public:
 	void closeCurrentWidget();
 
 	template<typename SharedDataContainer>
-	bool exportToCSV(QString filename, SharedDataContainer container) const;
+	bool exportToCSV(QString filename, SharedDataContainer container, const Eigen::Array3d* dq_final=nullptr, const Eigen::Array3d* edq=nullptr) const;
 
 	void onExportToCSV();
 

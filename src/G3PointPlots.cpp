@@ -72,7 +72,7 @@ void G3PointPlots::closeCurrentWidget()
 }
 
 template<typename SharedDataContainer>
-bool G3PointPlots::exportToCSV(QString filename, SharedDataContainer container) const
+bool G3PointPlots::exportToCSV(QString filename, SharedDataContainer container, const Eigen::Array3d* dq_final, const Eigen::Array3d* edq) const
 {
 	QFile file(filename);
 	if (!file.open(QFile::WriteOnly | QFile::Text))
@@ -86,7 +86,18 @@ bool G3PointPlots::exportToCSV(QString filename, SharedDataContainer container) 
 	stream.setRealNumberNotation(QTextStream::FixedNotation);
 
 	//header
-	stream << "angle [°], counts" << endl;
+	if (dq_final) // WolmanCustomPlot
+	{
+		stream << "# D10 [mm], D50 [mm], D90 [mm]" << endl;
+		stream << (*dq_final)(0) << (*dq_final)(0) << (*dq_final)(0) << endl;
+		stream << "# std(D10) [mm], std(D50) [mm], std(D90) [mm]" << endl;
+		stream << (*edq)(0) << (*edq)(0) << (*edq)(0) << endl;
+		stream << "diameter [m], pdf" << endl;
+	}
+	else // AnglesCustomPlot
+	{
+		stream << "angle [degree], counts" << endl;
+	}
 
 	//data
 	{
@@ -132,13 +143,18 @@ void G3PointPlots::onExportToCSV()
 
 	if (currentWidget->property("TypeOfCustomPlot").toString() == "AnglesCustomPlot")
 	{
+		Eigen::Array3d dq_final;
+		Eigen::Array3d edq;
 		exportToCSV<SharedBarsDataContainer>(filename,
 											 static_cast<AnglesCustomPlot*>(currentWidget)->dataContainer());
 	}
 	else if (currentWidget->property("TypeOfCustomPlot").toString() == "WolmanCustomPlot")
 	{
+		WolmanCustomPlot* wolmanCustomPlot = static_cast<WolmanCustomPlot*>(currentWidget);
 		exportToCSV<SharedGraphDataContainer>(filename,
-											  static_cast<WolmanCustomPlot*>(currentWidget)->dataContainer());
+											  wolmanCustomPlot->dataContainer(),
+											  &wolmanCustomPlot->m_dq_final,
+											  &wolmanCustomPlot->m_edq);
 	}
 }
 
