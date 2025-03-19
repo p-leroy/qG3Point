@@ -318,7 +318,7 @@ int G3PointAction::segmentLabels(bool useParallelStrategy)
 		for (auto i : stack)
 		{
 			labels(i) = k;
-			labelsnpoint(i) = stack.size();
+			labelsnpoint(i) = static_cast<int>(stack.size());
 			if (g3point_label)
 			{
 				g3point_label->setValue(i, k);
@@ -372,7 +372,7 @@ Eigen::ArrayXXd G3PointAction::computeMeanAngleBetweenNormalsAtBorders()
 		duplicated_labels(Eigen::all, n) = m_labels;
 	}
 	Eigen::ArrayXXi labels_of_neighbors(m_cloud->size(), m_kNN);
-	for (int index = 0; index < m_cloud->size(); index++)
+	for (int index = 0; index < static_cast<int>(m_cloud->size()); index++)
 	{
 		for (int n = 0; n < m_kNN; n++)
 		{
@@ -547,7 +547,7 @@ bool G3PointAction::updateLabelsAndColors()
 		for (auto i : stack)
 		{
 			m_labels(i) = k;
-			m_labelsnpoint(i) = stack.size();
+			m_labelsnpoint(i) = static_cast<int>(stack.size());
 			if (g3point_label)
 			{
 				g3point_label->setValue(i, k);
@@ -594,7 +594,7 @@ bool G3PointAction::exportLocalMaximaAsCloud(const Eigen::ArrayXi& localMaximumI
 	//allocate colors if necessary
 	if (cloud->resizeTheRGBTable())
 	{
-		for (int index = 0; index < cloud->size(); index++)
+		for (int index = 0; index < static_cast<int>(cloud->size()); index++)
 		{
 			cloud->setPointColor(index, randomColors.getValue(index));
 		}
@@ -665,7 +665,7 @@ bool G3PointAction::buildStacksFromG3PointLabelSF(CCCoreLib::ScalarField* g3Poin
 	for (auto label : labels)
 	{
 		std::vector<int> stack;
-		for (int idx =0; idx < m_cloud->size(); idx++)
+		for (int idx =0; idx < static_cast<int>(m_cloud->size()); idx++)
 		{
 			if (g3PointLabel->getLocalValue(idx) == label)
 			{
@@ -802,7 +802,7 @@ bool G3PointAction::keep(Xb& condition)
 				 + "/" + QString::number(m_stacks.size()) + " gains ("
 				 + QString::number(m_stacks.size() - newStacks.size()) + " removed)");
 
-	if (!processNewStacks(newStacks, pointCount))
+	if (!processNewStacks(newStacks, static_cast<int>(pointCount)))
 	{
 		ccLog::Error("[G3PointAction::keep] processing newStacks failed");
 	}
@@ -1031,7 +1031,7 @@ void G3PointAction::fit()
 	connect(m_dlg, &G3PointDialog::drawPoints, m_grainsAsEllipsoids, &GrainsAsEllipsoids::drawPoints);
 	connect(m_dlg, &G3PointDialog::glPointSize, m_grainsAsEllipsoids, &GrainsAsEllipsoids::setGLPointSize);
 
-	m_dlg->setOnlyOneMax(m_stacks.size());
+	m_dlg->setOnlyOneMax(static_cast<int>(m_stacks.size()));
 	m_dlg->emitSignals(); // force to send parameters to m_grainsAsEllipsoids
 
 	// m_cloud->getParent()->addChild(m_grainsAsEllipsoids.get());
@@ -1122,7 +1122,7 @@ bool G3PointAction::wolman()
 	}
 
 	// get the ellipsoid y axes andd labels
-	int nEllipsoids = m_grainsAsEllipsoids->m_center.size();
+	int nEllipsoids = static_cast<int>(m_grainsAsEllipsoids->m_center.size());
 	Eigen::VectorXf b_axis(nEllipsoids);
 	Eigen::VectorXi ellipsoidLabels(nEllipsoids);
 	for (int i = 0; i < nEllipsoids; i++)
@@ -1262,12 +1262,12 @@ bool G3PointAction::angles()
 		return false;
 	}
 
-	float delta = 1e32;
-	size_t n_ellipsoids = m_grainsAsEllipsoids->m_rotationMatrix.size();
+	float delta = static_cast<float>(1e32);
+	int n_ellipsoids = static_cast<float>(m_grainsAsEllipsoids->m_rotationMatrix.size());
 	QVector<double> granuloAngleMView(n_ellipsoids);
 	QVector<double> granuloAngleXView(n_ellipsoids);
 
-	for (size_t i = 0; i < n_ellipsoids; i++)
+	for (int i = 0; i < n_ellipsoids; i++)
 	{
 		float u, v, w;
 
@@ -1341,7 +1341,7 @@ bool G3PointAction::cleanLabels()
 		Eigen::ArrayXi stackSize(m_stacks.size());
 		for (size_t k = 0; k < m_stacks.size(); k++)
 		{
-			stackSize(k) = m_stacks[k].size();
+			stackSize(k) = static_cast<float>(m_stacks[k].size());
 		}
 		Xb condition = (stackSize > m_nMin);
 		size_t numberOfGrainsToKeep = condition.count();
@@ -1561,7 +1561,7 @@ int G3PointAction::segmentLabelsBraunWillett(bool useParallelStrategy)
 		for (auto i : stack)
 		{
 			m_initial_labels(i) = k;
-			m_initial_labelsnpoint(i) = stack.size();
+			m_initial_labelsnpoint(i) = static_cast<float>(stack.size());
 			if (g3point_label)
 			{
 				g3point_label->setValue(i, k);
@@ -1822,7 +1822,7 @@ void G3PointAction::segment()
 	computeNormalsWithOpen3D();
 
 	// compute the centroid
-	int pointCount = m_cloud->size();
+	unsigned pointCount = m_cloud->size();
 	CCVector3d G(0, 0, 0);
 	{
 		for (unsigned i = 0; i < pointCount; ++i)
@@ -1886,7 +1886,7 @@ void G3PointAction::getBorders()
 		duplicatedLabelsInColumns(Eigen::all, n) = m_labels;
 	}
 	Eigen::ArrayXXi labelsOfNeighbors(m_cloud->size(), m_kNN);
-	for (int index = 0; index < m_cloud->size(); index++)
+	for (int index = 0; index < static_cast<float>(m_cloud->size()); index++)
 	{
 		for (int n = 0; n < m_kNN; n++)
 		{

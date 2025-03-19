@@ -1005,7 +1005,7 @@ bool GrainsAsEllipsoids::drawEllipsoids(CC_DRAW_CONTEXT& context)
 			glFunc->glDisable(GL_LIGHTING);
 			glFunc->glDisable(GL_TEXTURE_2D);
 
-			glFunc->glDrawArrays(GL_POINTS, 0, stack.size());
+			glFunc->glDrawArrays(GL_POINTS, 0, static_cast<GLsizei>(stack.size()));
 
 			// reset the vertex positions to the template sphere
 			m_program->setAttributeArray("vertexPosition", static_cast<GLfloat*>(vertices.data()), 3);
