@@ -74,9 +74,11 @@ GrainsAsEllipsoids::GrainsAsEllipsoids(ccPointCloud *cloud, ccMainAppInterface *
 	}
 
 	// remove data corresponding to stacks were the fit was not successful
+	Eigen::Array3f nullArray;
+	nullArray.fill(NAN);
 	for (auto el : m_fitNotOK)
 	{
-		m_center[el] << NAN, NAN, NAN;
+		m_center[el] = nullArray;
 	}
 
 	m_ccBBoxAll.setValidity(true);
