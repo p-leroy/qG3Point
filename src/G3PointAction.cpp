@@ -1155,10 +1155,6 @@ bool G3PointAction::wolman()
 
 	float dx = 1.1 * b_axis.maxCoeff();
 
-	Eigen::ArrayXf x_grid;
-	Eigen::ArrayXf y_grid;
-	Eigen::ArrayXf distances;
-	Eigen::Index minLoc;
 	std::vector<Eigen::ArrayXf> d;
 
 	std::random_device rd;
@@ -1172,6 +1168,12 @@ bool G3PointAction::wolman()
 #endif
 	for (int k = 0; k < n_iter; k++)
 	{
+		// local variables
+		Eigen::ArrayXf x_grid;
+		Eigen::ArrayXf y_grid;
+		Eigen::ArrayXf distances;
+		Eigen::Index minLoc;
+
 		if (k % 20 == 0)
 		{
 			std::cout << k << std::endl;

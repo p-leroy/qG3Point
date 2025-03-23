@@ -16,7 +16,7 @@ target_sources(G3PointPlugin
     ui/WolmanCustomPlot.ui
 )
 
-	set(QG3POINT_PLUGIN_VERSION "0.4")
+	set(QG3POINT_PLUGIN_VERSION "0.5")
 
 	add_subdirectory( include )
 	add_subdirectory( src )
