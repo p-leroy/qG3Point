@@ -27,7 +27,7 @@ target_sources(G3PointPlugin
 	target_include_directories( ${PROJECT_NAME} PRIVATE
 		C:/opt/eigen-3.4.0
 		C:/Users/PaulLeroy/miniconda3/envs/env_4_CloudCompare/include
-		C:/opt/open3d-devel-windows-amd64-0.18.0/include
+		C:/opt/open3d-devel-windows-amd64-0.19.0/include
 		C:/opt/GeometricTools/GTE
 		C:/opt/boost_1_77_0
 	)
@@ -47,7 +47,10 @@ target_sources(G3PointPlugin
 	target_link_libraries( ${PROJECT_NAME} Open3D::Open3D )
 
 	message( "Open3D_DIR ${Open3D_DIR}" )
-	set( OPENCV_DEP_DLL_FILES ${Open3D_DIR}/../bin/Open3D.dll)
+	set( OPENCV_DEP_DLL_FILES
+		${Open3D_DIR}/../bin/Open3D.dll
+		${Open3D_DIR}/../bin/tbb12.dll
+	)
 	copy_files( "${OPENCV_DEP_DLL_FILES}" "${CLOUDCOMPARE_DEST_FOLDER}" 1) #mind the quotes!
 	copy_files( "${CMAKE_CURRENT_SOURCE_DIR}/shaders/DrawGrains.vs" "${CLOUDCOMPARE_DEST_FOLDER}/shaders/G3Point" 1) #mind the quotes!
 	copy_files( "${CMAKE_CURRENT_SOURCE_DIR}/shaders/DrawGrains.fs" "${CLOUDCOMPARE_DEST_FOLDER}/shaders/G3Point" 1) #mind the quotes!
