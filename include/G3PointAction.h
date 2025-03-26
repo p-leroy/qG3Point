@@ -64,7 +64,7 @@ private:
 	bool updateLabelsAndColors();
 	bool checkStacks(const std::vector<std::vector<int>>& stacks, int count);
 	void addToStackBraunWillett(int index, const Eigen::ArrayXi& delta, const Eigen::ArrayXi &Di, std::vector<int>& stack, int local_maximum);
-	int segmentLabelsBraunWillett(bool useParallelStrategy=true);
+	int segmentLabelsBraunWillett();
 	void getNeighborsDistancesSlopes(unsigned index);
 	void computeNodeSurfaces();
 	bool computeNormalsAndOrientThemWithCloudCompare();

@@ -463,13 +463,17 @@ bool G3PointAction::checkStacks(const std::vector<std::vector<int>>& stacks, int
 
 	if (errorCount)
 	{
-		ccLog::Error("[G3PointAction::check_stacks] number of duplicates " + QString::number(errorCount));
+		ccLog::Warning("[G3PointAction::check_stacks] number of duplicates " + QString::number(errorCount));
+		ret = false;
 	}
 
 	// the number of points in the stacks shall be equal to count
 	if(indexes.size() != count)
 	{
-		ccLog::Warning("[G3PointAction::check_stacks] size of indexes " + QString::number(indexes.size()) + ", point count " + QString::number(m_cloud->size()));
+		ccLog::Warning("[G3PointAction::check_stacks] point in stacks "
+					   + QString::number(indexes.size())
+					   + ", expected " + QString::number(m_cloud->size())
+					   + " (may be due to duplicates in the point cloud)");
 		ret = false;
 	}
 
@@ -602,12 +606,11 @@ bool G3PointAction::exportLocalMaximaAsCloud(const Eigen::ArrayXi& localMaximumI
 
 	cloud->showColors(true);
 
-	ccHObject* parent = m_cloud->getParent();
-	int nbChildren = parent->getChildrenNumber();
+	int nbChildren = m_cloud->getChildrenNumber();
 	std::vector<ccHObject *> toDelete;
 	for (int k = 0; k < nbChildren; k++)
 	{
-		auto child = parent->getChild(k);
+		auto child = m_cloud->getChild(k);
 
 		if (child->getName() == cloudName)
 		{
@@ -821,7 +824,7 @@ bool G3PointAction::EigenArrayToFile(QString name, T array)
 
 bool G3PointAction::cluster()
 {
-	ccLog::Print("[cluster_labels]");
+	ccLog::Print("[cluster labels]");
 	size_t nlabels = m_stacks.size();
 
 	m_maxAngle1 = m_dlg->getMaxAngle1();
@@ -865,7 +868,7 @@ bool G3PointAction::cluster()
 	// If the radius of the sink is above the distance to the other sink (by a factor of rad_factor), set Dist to 1
 	Eigen::ArrayXXi Dist = Eigen::ArrayXXi::Zero(nlabels, nlabels);
 	Dist = (m_radiusFactor * D2 > D1).select(1, Dist);
-	for (int i = 0; i < 10; i++)  // set the values of the diagonal to 0
+	for (int i = 0; i < nlabels; i++)  // set the values of the diagonal to 0
 	{
 		Dist(i, i) = 0;
 	}
@@ -903,6 +906,7 @@ bool G3PointAction::cluster()
 	if (!checkStacks(m_stacks, m_cloud->size()))
 	{
 		ccLog::Error("m_stacks is not valid");
+		return false;
 	}
 
 	// create the condition matrix and force the symmetry of the matrix
@@ -1328,6 +1332,7 @@ bool G3PointAction::cleanLabels()
 	// merge points considering the normals at the border
 	{
 		ccLog::Print("[cleanLabels] merge points considering the normals at the border");
+		std::cout << "[cleanLabels] merge points considering the normals at the border" << std::endl;
 		Eigen::ArrayXXd A = computeMeanAngleBetweenNormalsAtBorders();
 		XXb condition = (A > m_maxAngle2) || (A != A); // add true on the diagonal (important for the if hereafter)
 		XXb symmetrical_condition = (condition == condition.transpose()).select(condition, true);
@@ -1340,10 +1345,11 @@ bool G3PointAction::cleanLabels()
 	//remove small labels
 	{
 		ccLog::Print("[cleanLabels] remove small labels");
+		std::cout << "[cleanLabels] remove small labels" << std::endl;
 		Eigen::ArrayXi stackSize(m_stacks.size());
 		for (size_t k = 0; k < m_stacks.size(); k++)
 		{
-			stackSize(k) = static_cast<float>(m_stacks[k].size());
+			stackSize(k) = static_cast<int>(m_stacks[k].size());
 		}
 		Xb condition = (stackSize > m_nMin);
 		size_t numberOfGrainsToKeep = condition.count();
@@ -1366,6 +1372,7 @@ bool G3PointAction::cleanLabels()
 	// remove flattish labels
 	{
 		ccLog::Print("[cleanLabels] remove flattish labels");
+		std::cout << "[cleanLabels] remove flattish labels" << std::endl;
 		Eigen::ArrayX3d s(m_stacks.size(), 3);
 		for (size_t k = 0; k < m_stacks.size(); k++)
 		{
@@ -1421,7 +1428,7 @@ void G3PointAction::addToStackBraunWillett(int index, const Eigen::ArrayXi& delt
 	}
 }
 
-int G3PointAction::segmentLabelsBraunWillett(bool useParallelStrategy)
+int G3PointAction::segmentLabelsBraunWillett()
 {
 	std::cout << "[segment_labels]" << std::endl;
 
@@ -1571,6 +1578,12 @@ int G3PointAction::segmentLabelsBraunWillett(bool useParallelStrategy)
 			}
 		}
 		m_initialStacks.push_back(stack);
+	}
+
+	if (!checkStacks(m_initialStacks, m_cloud->size()))  // check the stacks coherency
+	{
+		m_cloud->deleteScalarField(sfIdx);
+		return -1;
 	}
 
 	if (g3point_label)
@@ -1817,7 +1830,13 @@ void G3PointAction::segment()
 	init();
 
 	// Find neighbors of each point of the cloud
-	queryNeighbors(m_cloud, m_app, true);
+	bool useParallelStrategy;
+#ifdef NDEBUG
+	useParallelStrategy = true;
+#else
+	useParallelStrategy = false;
+#endif
+	queryNeighbors(m_cloud, m_app, useParallelStrategy);
 
 	computeNodeSurfaces();
 
@@ -1840,6 +1859,11 @@ void G3PointAction::segment()
 
 	// Perform initial segmentation
 	int nLabels = segmentLabelsBraunWillett();
+	if (nLabels == -1)
+	{
+		ccLog::Error("[G3Point::segment] initial segmentation failed, abort segmentation");
+		return;
+	}
 
 	exportLocalMaximaAsCloud(m_initial_localMaximumIndexes);
 
@@ -1867,6 +1891,7 @@ void G3PointAction::clusterAndOrClean()
 		if (!cluster())
 		{
 			ccLog::Error("[G3PointAction::clusterAndOrClean] clustering failed");
+			return;
 		}
 	}
 
@@ -1875,6 +1900,7 @@ void G3PointAction::clusterAndOrClean()
 		if (!cleanLabels())
 		{
 			ccLog::Error("[G3PointAction::clusterAndOrClean] cleaning failed");
+			return;
 		}
 	}
 }
