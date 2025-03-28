@@ -1135,7 +1135,7 @@ bool G3PointAction::wolman()
 		ellipsoidLabels(i) = i;
 	}
 
-	// rebuild a matrix with the coordinates the labels of the original cloud
+	// rebuild vectors with the coordinates and the labels of the original points
 	int n_points = m_grainsAsEllipsoids->m_cloud->size();
 	Eigen::ArrayXf x(n_points);
 	Eigen::ArrayXf y(n_points);
@@ -1178,13 +1178,17 @@ bool G3PointAction::wolman()
 		Eigen::ArrayXf distances;
 		Eigen::Index minLoc;
 
-		if (k % 20 == 0)
+		if (k % 20 == 0) // display progress
 		{
 			std::cout << k << std::endl;
 		}
+
 		float r0 = dist(urbg);
 		float r1 = dist(urbg);
-		// std::cout << r0 << ", " << r1 << "," << std::endl;
+// #pragma omp critical
+// 		{
+// 		std::cout << r0 << ", " << r1 << "," << std::endl;
+// 		}
 		x_grid = arange(x.minCoeff() - r0 * dx, x.maxCoeff(), dx);
 		y_grid = arange(y.minCoeff() - r1 * dx, y.maxCoeff(), dx);
 		int nx = x_grid.size();
@@ -1200,36 +1204,57 @@ bool G3PointAction::wolman()
 				iWolman(ix, iy) = minLoc;
 			}
 		}
+		// std::cout << dist.block(0, 0, 5, 5) << std::endl;
+		// std::cout << iWolman.block(0, 0, 5, 5) << std::endl;
 		XXb condition = (dist < dx / 10);
 		Eigen::ArrayXf iWolmanSelection(condition.count());
 		int indexInWolmanSelection = 0;
-		for (int k = 0; k < condition.size(); k++)
+		// for (int k = 0; k < condition.size(); k++)
+		// {
+		// 	if (condition(k))
+		// 	{
+		// 		iWolmanSelection(indexInWolmanSelection) = iWolman(k);
+		// 		indexInWolmanSelection++;
+		// 	}
+		// }
+		for (int ix = 0; ix < nx; ix++)
 		{
-			if (condition(k))
+			for (int iy = 0; iy < ny; iy++)
 			{
-				iWolmanSelection(indexInWolmanSelection) = iWolman(k);
-				indexInWolmanSelection++;
+				if (condition(ix, iy))
+				{
+					iWolmanSelection(indexInWolmanSelection) = iWolman(ix, iy);
+					indexInWolmanSelection++;
+				}
 			}
 		}
 		Eigen::ArrayXi wolmanSelection;
 		wolmanSelection = pointsLabels(iWolmanSelection);
+		// std::cout << "[" << k << "] wolmanSelection\n" << wolmanSelection << std::endl;
 		std::unordered_set<int> setOfA(wolmanSelection.begin(), wolmanSelection.end());
 		std::vector<int> y_ind;
-	// 	// A is wolmanSelection
-	// 	// B is ellipsoidsLabels
-		for (int i = 0; i < nEllipsoids; ++i)
+		for (auto label : wolmanSelection)
 		{
-			int ellipsoidLabel = ellipsoidLabels[i];
-			if (setOfA.find(ellipsoidLabel) != setOfA.end())
+			// some grains does not have an associated ellipdsoid, they shall not be considered in the Wolman statistics
+			if (m_grainsAsEllipsoids->m_fitNotOK.count(label))
 			{
-				y_ind.push_back(ellipsoidLabel);
+				// std::cout << "discard ellipsoid with label: "<< ellipsoidLabel << " (fitNotOK)" << std::endl;
+				continue;
+			}
+			else
+			{
+				y_ind.push_back(label);
 			}
 		}
 		Eigen::ArrayXf d_item(y_ind.size());
+		// std::cout << "y_ind\n";
 		for (int i = 0; i < y_ind.size(); i++)
 		{
+			// std::cout << y_ind[i] << " " ;
 			d_item(i) = b_axis(y_ind[i]) * 1000; // conversion to mm
 		}
+		// std::cout << std::endl;
+		// std::cout << "[" << k << "] " << d_item << std::endl;
 #pragma omp critical
 		{
 		d.push_back(d_item);
@@ -1247,6 +1272,8 @@ bool G3PointAction::wolman()
 		dq(i, Eigen::all) << quant(d[i], 0.1), quant(d[i], 0.5), quant(d[i], 0.9);
 	}
 
+	// std::cout << "d_sample " << d_sample << std::endl;
+
 	// compute standard deviation
 	Eigen::Array3d edq {std_dev(dq(Eigen::all, 0)),
 					   std_dev(dq(Eigen::all, 1)),
@@ -1254,6 +1281,18 @@ bool G3PointAction::wolman()
 	Eigen::Array3d dq_final {quant(d_sample, 0.1),
 							quant(d_sample, 0.5),
 							quant(d_sample, 0.9)};
+
+	// std::cout << "d_sample\n" << d_sample << std::endl;
+	std::cout << "quantl 0.1 0.5 0.9 \n"
+			  << dq_final(0) << " "
+			  << dq_final(1) << " "
+			  << dq_final(2) << std::endl;
+
+	std::cout << "std_dev 0.1 0.5 0.9 \n"
+			  << edq(0) << " "
+			  << edq(1) << " "
+			  << edq(2) << std::endl;
+
 
 	showWolman(d_sample, dq_final, edq);
 

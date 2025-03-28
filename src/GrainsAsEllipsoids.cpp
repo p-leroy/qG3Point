@@ -74,11 +74,25 @@ GrainsAsEllipsoids::GrainsAsEllipsoids(ccPointCloud *cloud, ccMainAppInterface *
 	}
 
 	// remove data corresponding to stacks were the fit was not successful
-	Eigen::Array3f nullArray;
-	nullArray.fill(NAN);
 	for (auto el : m_fitNotOK)
 	{
-		m_center[el] = nullArray;
+		// if the fit is not OK, we use the centroid as a center
+		int nPoints = m_stacks[el].size();
+		Eigen::MatrixX3d points(nPoints, 3);
+		for (int index = 0; index < nPoints; index++)
+		{
+			const CCVector3* point = m_cloud->getPoint(m_stacks[el][index]);
+			points(index, 0) = point->x;
+			points(index, 1) = point->y;
+			points(index, 2) = point->z;
+		}
+		// compute the centroid of the label
+		Eigen::RowVector3d centroid = points.colwise().mean();
+		m_center[el] << centroid.x(), centroid.y(), centroid.z();
+
+		m_radii[el].fill(0);
+
+		m_rotationMatrix[el].fill(NAN);
 	}
 
 	m_ccBBoxAll.setValidity(true);
@@ -113,10 +127,10 @@ bool GrainsAsEllipsoids::exportResultsAsCloud()
 
 	for (int idx = 0; idx < m_center.size(); idx++)
 	{
-		if (m_fitNotOK.count(idx))
-		{
-			continue;
-		}
+		// if (m_fitNotOK.count(idx))
+		// {
+		// 	continue;
+		// }
 		Eigen::Vector3f center {m_center[idx].x(), m_center[idx].y(), m_center[idx].z()};
 		Eigen::Vector3f point = center;
 		CCVector3 ccPoint(point(0), point(1), point(2));
@@ -149,10 +163,10 @@ bool GrainsAsEllipsoids::exportResultsAsCloud()
 	int indexInResults = 0;
 	for (int index = 0; index < m_center.size(); index++)
 	{
-		if (m_fitNotOK.count(index)) // when the fit was not successful, the point is not exported
-		{
-			continue;
-		}
+		// if (m_fitNotOK.count(index)) // when the fit was not successful, the point is not exported
+		// {
+		// 	continue;
+		// }
 		sf->setValue(indexInResults, index);
 		indexInResults++;
 	}
@@ -172,10 +186,10 @@ bool GrainsAsEllipsoids::exportResultsAsCloud()
 	CCCoreLib::ScalarField* sfRadiusZ = cloud->getScalarField(sfIdxRadiusZ);
 	for (unsigned int index = 0; index < cloud->size(); index++)
 	{
-		if (m_fitNotOK.count(index))
-		{
-			continue;
-		}
+		// if (m_fitNotOK.count(index))
+		// {
+		// 	continue;
+		// }
 		sfRadiusX->setValue(index, m_radii[index].x());
 		sfRadiusY->setValue(index, m_radii[index].y());
 		sfRadiusZ->setValue(index, m_radii[index].z());
@@ -213,10 +227,10 @@ bool GrainsAsEllipsoids::exportResultsAsCloud()
 	CCCoreLib::ScalarField* sfR22 = cloud->getScalarField(sfIdxR22);
 	for (unsigned int index = 0; index < cloud->size(); index++)
 	{
-		if (m_fitNotOK.count(index))
-		{
-			continue;
-		}
+		// if (m_fitNotOK.count(index))
+		// {
+		// 	continue;
+		// }
 		sfR00->setValue(index, m_rotationMatrix[index](0, 0));
 		sfR01->setValue(index, m_rotationMatrix[index](0, 1));
 		sfR02->setValue(index, m_rotationMatrix[index](0, 2));
@@ -241,8 +255,6 @@ bool GrainsAsEllipsoids::exportResultsAsCloud()
 	cloud->showColors(true);
 	cloud->setPointSize(9);
 
-	// m_cloud->getParent()->addChild(cloud, ccHObject::DP_PARENT_OF_OTHER, 0);
-	// m_app->addToDB(cloud);
 	m_cloud->addChild(cloud);
 	m_app->addToDB(cloud);
 
@@ -1250,7 +1262,7 @@ bool GrainsAsEllipsoids::fromFile_MeOnly(QFile& in, short dataVersion, int flags
 	{
 		float maxRadius = m_radii[idx].maxCoeff();
 		CCVector3 center(m_center[idx](0), m_center[idx](1), m_center[idx](2));
-		if (center.x != center.x)
+		if (m_radii[idx].x() != -1) // all radii are equal to zero when the fit was not successful
 		{
 			m_fitNotOK.insert(idx);
 			continue;

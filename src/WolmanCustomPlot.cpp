@@ -1,6 +1,8 @@
 #include "WolmanCustomPlot.h"
 #include "ui_WolmanCustomPlot.h"
 
+#include <iostream>
+
 WolmanCustomPlot::WolmanCustomPlot(const Eigen::ArrayXf &d_sample, const Eigen::Array3d& dq_final, const Eigen::Array3d& edq):
 	m_dq_final(dq_final),
 	m_edq(edq),
@@ -15,14 +17,30 @@ WolmanCustomPlot::WolmanCustomPlot(const Eigen::ArrayXf &d_sample, const Eigen::
 	QPen pen;
 
 	m_graph = this->addGraph();
-	QVector<double> x_data(d_sample.size());
-	QVector<double> y_data(d_sample.size());
-	for (int k = 0; k < d_sample.size(); k++)
+
+	// build x_data
+	int nSamples = d_sample.size();
+	QVector<double> x_data(nSamples);
+	for (int k = 0; k < nSamples; k++)
 	{
 		x_data[k] = d_sample(k);
-		y_data[k] = (static_cast<double>(k)) / static_cast<double>(d_sample.size());
 	}
-	std::sort(x_data.begin(), x_data.end());
+	while(x_data.contains(0.))
+	{
+		int index = x_data.indexOf(0.);
+		std::cout << "[WolmanCustomPlot::WolmanCustomPlot] remove null diameter at index " << QString::number(index).toStdString() << std::endl;
+		x_data.remove(index);
+	}
+	std::sort(x_data.begin(), x_data.end()); // sort diameters
+
+	// build y_data
+	int nValidSamples = x_data.size();
+	QVector<double> y_data(nValidSamples);
+	for (int k = 0; k < nValidSamples; k++)
+	{
+		y_data[k] = (static_cast<double>(k)) / static_cast<double>(nValidSamples);
+	}
+
 	m_graph->setData(x_data, y_data);
 	m_graph->rescaleAxes();
 	// give the axes some labels:

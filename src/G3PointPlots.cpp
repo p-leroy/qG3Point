@@ -89,9 +89,9 @@ bool G3PointPlots::exportToCSV(QString filename, SharedDataContainer container, 
 	if (dq_final) // WolmanCustomPlot
 	{
 		stream << "# D10 [mm], D50 [mm], D90 [mm]" << endl;
-		stream << (*dq_final)(0) << (*dq_final)(0) << (*dq_final)(0) << endl;
+		stream << (*dq_final)(0) << " " << (*dq_final)(1) << " " << (*dq_final)(2) << endl;
 		stream << "# std(D10) [mm], std(D50) [mm], std(D90) [mm]" << endl;
-		stream << (*edq)(0) << (*edq)(0) << (*edq)(0) << endl;
+		stream << (*edq)(0) << " " <<  (*edq)(1) << " " <<  (*edq)(2 ) << endl;
 		stream << "diameter [m], pdf" << endl;
 	}
 	else // AnglesCustomPlot
