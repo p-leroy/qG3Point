@@ -77,7 +77,7 @@ GrainsAsEllipsoids::GrainsAsEllipsoids(ccPointCloud *cloud, ccMainAppInterface *
 	for (auto el : m_fitNotOK)
 	{
 		// if the fit is not OK, we use the centroid as a center
-		int nPoints = m_stacks[el].size();
+		int nPoints = static_cast<int>(m_stacks[el].size());
 		Eigen::MatrixX3d points(nPoints, 3);
 		for (int index = 0; index < nPoints; index++)
 		{
