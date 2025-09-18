@@ -1047,7 +1047,7 @@ void G3PointAction::fit()
 }
 
 void G3PointAction::exportResults()
-{	
+{
 	if (m_grainsAsEllipsoids)
 	{
 		m_grainsAsEllipsoids->exportResultsAsCloud();
@@ -1648,7 +1648,7 @@ int G3PointAction::segmentLabelsBraunWillett()
 	return nLabels;
 }
 
-void G3PointAction::getNeighborsDistancesSlopes(unsigned index)
+void G3PointAction::getNeighborsDistancesSlopes(unsigned index, std::vector<char>& duplicates)
 {
 	const CCVector3* P = m_cloud->getPoint(index);
 
@@ -1670,7 +1670,15 @@ void G3PointAction::getNeighborsDistancesSlopes(unsigned index)
 			float distance = (*P - *neighbor).norm();
 			m_neighborsDistances(index, k) = distance;
 			// compute the slope to the neighbor
-			m_neighborsSlopes(index, k) = (P->z - neighbor->z) / distance;
+			if (distance != 0)
+			{
+				m_neighborsSlopes(index, k) = (P->z - neighbor->z) / distance;
+			}
+			else
+			{
+				m_neighborsSlopes(index, k) = 0.; // it is possible to have duplicates in the cloud
+				duplicates[index] = 1;
+			}
 		}
 	}
 }
@@ -1810,7 +1818,7 @@ bool G3PointAction::computeNormalsWithOpen3D()
 }
 
 bool G3PointAction::queryNeighbors(ccPointCloud* cloud, ccMainAppInterface* appInterface, bool useParallelStrategy)
-{	
+{
 	QString errorStr;
 
 	ccProgressDialog progressDlg(true, appInterface->getMainWindow());
@@ -1838,8 +1846,8 @@ bool G3PointAction::queryNeighbors(ccPointCloud* cloud, ccMainAppInterface* appI
 
 	size_t nPoints = m_cloud->size();
 	CCCoreLib::DgmOctree::NearestNeighboursSearchStruct nNSS;
-	std::vector<unsigned> pointsIndexes;
-	pointsIndexes.resize(nPoints);
+	std::vector<unsigned> pointsIndexes(nPoints);
+	std::vector<char> duplicates(nPoints, 0);
 
 	if (useParallelStrategy)
 	{
@@ -1850,15 +1858,21 @@ bool G3PointAction::queryNeighbors(ccPointCloud* cloud, ccMainAppInterface* appI
 		int threadCount = std::max(1, ccQtHelpers::GetMaxThreadCount() - 2);
 		std::cout << "[query_neighbor] parallel strategy, thread count " << threadCount <<  std::endl;
 		QThreadPool::globalInstance()->setMaxThreadCount(threadCount);
-		QtConcurrent::blockingMap(pointsIndexes, [=](int index){getNeighborsDistancesSlopes(index);});
+		QtConcurrent::blockingMap(pointsIndexes, [&](int index){getNeighborsDistancesSlopes(index, duplicates);});
 	}
 	else
 	{
 		//manually call the static per-point method!
 		for (unsigned i = 0; i < nPoints; ++i)
 		{
-			getNeighborsDistancesSlopes(i);
+			getNeighborsDistancesSlopes(i, duplicates);
 		}
+	}
+
+	auto trueCount = std::count(duplicates.begin(), duplicates.end(), 1);
+	if (trueCount)
+	{
+		ccLog::Warning("[G3Point] You have duplicates (" + QString::number(trueCount) + "), the algorithm will continue but you may think of cleaning your cloud.");
 	}
 
 	return true;

@@ -63,9 +63,9 @@ private:
 	bool updateLocalMaximumIndexes();
 	bool updateLabelsAndColors();
 	bool checkStacks(const std::vector<std::vector<int>>& stacks, int count);
-	void addToStackBraunWillett(int index, const Eigen::ArrayXi& delta, const Eigen::ArrayXi &Di, std::vector<int>& stack, int local_maximum);
+	void addToStackBraunWillett(int index, const Eigen::ArrayXi& delta, const Eigen::ArrayXi& Di, std::vector<int>& stack, int local_maximum);
 	int segmentLabelsBraunWillett();
-	void getNeighborsDistancesSlopes(unsigned index);
+	void getNeighborsDistancesSlopes(unsigned index, std::vector<char>& duplicates);
 	void computeNodeSurfaces();
 	bool computeNormalsAndOrientThemWithCloudCompare();
 	void orientNormals(const Eigen::Vector3d &sensorCenter);
