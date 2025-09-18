@@ -95,7 +95,7 @@ void WolmanCustomPlot::mousePressEvent(QMouseEvent *event)
 		QAction* action = new QAction("Close tab");
 		menu->addAction(action);
 		connect(action, &QAction::triggered, this, &WolmanCustomPlot::emitCloseTab);
-		menu->popup(event->globalPos());
+		menu->popup(event->globalPosition().toPoint());
 	}
 	QCustomPlot::mousePressEvent(event);
 }

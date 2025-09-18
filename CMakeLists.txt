@@ -31,7 +31,7 @@ if ( PLUGIN_G3POINT )
 	# QCUSTOMPLOT
 	target_link_libraries(${PROJECT_NAME}
 		QCustomPlot
-		Qt5::PrintSupport
+		Qt6::PrintSupport
 		)
 
 	# EIGEN

@@ -88,22 +88,22 @@ bool G3PointPlots::exportToCSV(QString filename, SharedDataContainer container, 
 	//header
 	if (dq_final) // WolmanCustomPlot
 	{
-		stream << "# D10 [mm], D50 [mm], D90 [mm]" << endl;
-		stream << (*dq_final)(0) << " " << (*dq_final)(1) << " " << (*dq_final)(2) << endl;
-		stream << "# std(D10) [mm], std(D50) [mm], std(D90) [mm]" << endl;
-		stream << (*edq)(0) << " " <<  (*edq)(1) << " " <<  (*edq)(2 ) << endl;
-		stream << "diameter [m], pdf" << endl;
+		stream << "# D10 [mm], D50 [mm], D90 [mm]" << Qt::endl;
+		stream << (*dq_final)(0) << " " << (*dq_final)(1) << " " << (*dq_final)(2) << Qt::endl;
+		stream << "# std(D10) [mm], std(D50) [mm], std(D90) [mm]" << Qt::endl;
+		stream << (*edq)(0) << " " <<  (*edq)(1) << " " <<  (*edq)(2 ) << Qt::endl;
+		stream << "diameter [m], pdf" << Qt::endl;
 	}
 	else // AnglesCustomPlot
 	{
-		stream << "angle [degree], counts" << endl;
+		stream << "angle [degree], counts" << Qt::endl;
 	}
 
 	//data
 	{
 		for (auto item : *container)
 		{
-			stream << item.key << " " << item.value << endl;
+			stream << item.key << " " << item.value << Qt::endl;
 		}
 	}
 
