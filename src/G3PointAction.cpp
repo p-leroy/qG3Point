@@ -369,7 +369,7 @@ Eigen::ArrayXXd G3PointAction::computeMeanAngleBetweenNormalsAtBorders()
 	Eigen::ArrayXXi duplicated_labels(m_cloud->size(), m_kNN);
 	for (int n = 0; n < m_kNN; n++)
 	{
-		duplicated_labels(Eigen::all, n) = m_labels;
+		duplicated_labels(Eigen::placeholders::all, n) = m_labels;
 	}
 	Eigen::ArrayXXi labels_of_neighbors(m_cloud->size(), m_kNN);
 	for (int index = 0; index < static_cast<int>(m_cloud->size()); index++)
@@ -403,12 +403,12 @@ Eigen::ArrayXXd G3PointAction::computeMeanAngleBetweenNormalsAtBorders()
 
 	for (auto i : indborder)
 	{
-		auto neighbors = m_neighborsIndexes(i, Eigen::all);  // indexes of the neighbors of i
-		Eigen::Vector3d N1(m_normals(i, Eigen::all)); // normal at i
+		auto neighbors = m_neighborsIndexes(i, Eigen::placeholders::all);  // indexes of the neighbors of i
+		Eigen::Vector3d N1(m_normals(i, Eigen::placeholders::all)); // normal at i
 		for (auto j : neighbors)
 		{
 			// Take the normals vector for i and j
-			Eigen::Vector3d N2(m_normals(j, Eigen::all)); // normal at j
+			Eigen::Vector3d N2(m_normals(j, Eigen::placeholders::all)); // normal at j
 			double angle = angleRot2VecMat(N1, N2);
 			if ((m_labels(i) != -1) && (m_labels(j) != -1))  // points which belong to the discarded grains have the -1 label
 			{
@@ -1263,21 +1263,21 @@ bool G3PointAction::wolman()
 
 	Eigen::ArrayXXf dq(n_iter, 3);
 	Eigen::ArrayXf d_sample = d[0];
-	dq(0, Eigen::all) << quant(d[0], 0.1), quant(d[0], 0.5), quant(d[0], 0.9);
+	dq(0, Eigen::placeholders::all) << quant(d[0], 0.1), quant(d[0], 0.5), quant(d[0], 0.9);
 	for (int i = 1; i < n_iter; i++)
 	{
 		Eigen::ArrayXf tmp(d_sample.size() + d[i].size());
 		tmp << d_sample, d[i];
 		d_sample = tmp;
-		dq(i, Eigen::all) << quant(d[i], 0.1), quant(d[i], 0.5), quant(d[i], 0.9);
+		dq(i, Eigen::placeholders::all) << quant(d[i], 0.1), quant(d[i], 0.5), quant(d[i], 0.9);
 	}
 
 	// std::cout << "d_sample " << d_sample << std::endl;
 
 	// compute standard deviation
-	Eigen::Array3d edq {std_dev(dq(Eigen::all, 0)),
-					   std_dev(dq(Eigen::all, 1)),
-					   std_dev(dq(Eigen::all, 2))};
+	Eigen::Array3d edq {std_dev(dq(Eigen::placeholders::all, 0)),
+					   std_dev(dq(Eigen::placeholders::all, 1)),
+					   std_dev(dq(Eigen::placeholders::all, 2))};
 	Eigen::Array3d dq_final {quant(d_sample, 0.1),
 							quant(d_sample, 0.5),
 							quant(d_sample, 0.9)};
@@ -1430,11 +1430,11 @@ bool G3PointAction::cleanLabels()
 			Eigen::RowVector3d centroid = points.colwise().mean();
 			points.rowwise() -= centroid;
 			// SVD decomposition A = U S V∗
-			s(k, Eigen::all) = points.jacobiSvd().singularValues();
+			s(k, Eigen::placeholders::all) = points.jacobiSvd().singularValues();
 		}
 		// filtering condition: (l2 / l0 > min_flatness) or (l1 / l0 > 2 * min_flatness)
-		Xb condition = (s(Eigen::all, 2) / s(Eigen::all, 0) > m_minFlatness)
-					   || (s(Eigen::all, 1) / s(Eigen::all, 0) > 2. * m_minFlatness);
+		Xb condition = (s(Eigen::placeholders::all, 2) / s(Eigen::placeholders::all, 0) > m_minFlatness)
+					   || (s(Eigen::placeholders::all, 1) / s(Eigen::placeholders::all, 0) > 2. * m_minFlatness);
 		size_t numberOfGrainsToKeep = condition.count();
 		if (numberOfGrainsToKeep == m_stacks.size())
 		{
@@ -1742,7 +1742,7 @@ void G3PointAction::orientNormals(const Eigen::Vector3d& sensorCenter)
 	{
 		const CCVector3 *point = m_cloud->getPoint(i);
 		Eigen::Vector3d P1 = sensorCenter - Eigen::Vector3d(point->x, point->y, point->z);
-		Eigen::Vector3d P2 = m_normals(i, Eigen::all);
+		Eigen::Vector3d P2 = m_normals(i, Eigen::placeholders::all);
 		double angle = atan2(P1.cross(P2).norm(), P1.dot(P2));
 		if ((angle < - M_PI / 2) || (angle > M_PI / 2))
 		{
@@ -1950,7 +1950,7 @@ void G3PointAction::getBorders()
 	Eigen::ArrayXXi duplicatedLabelsInColumns(m_cloud->size(), m_kNN);
 	for (int n = 0; n < m_kNN; n++)
 	{
-		duplicatedLabelsInColumns(Eigen::all, n) = m_labels;
+		duplicatedLabelsInColumns(Eigen::placeholders::all, n) = m_labels;
 	}
 	Eigen::ArrayXXi labelsOfNeighbors(m_cloud->size(), m_kNN);
 	for (int index = 0; index < static_cast<float>(m_cloud->size()); index++)
