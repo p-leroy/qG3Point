@@ -626,15 +626,15 @@ bool GrainsAsEllipsoids::directFit(const Eigen::ArrayX3d& xyz, Eigen::ArrayXd& p
 
 	Eigen::MatrixXd d(xyz.rows(), 10);
 
-	d << xyz(Eigen::all, 0).pow(2).matrix()
-		, xyz(Eigen::all, 1).pow(2).matrix()
-		, xyz(Eigen::all, 2).pow(2).matrix()
-		, (2 * xyz(Eigen::all, 1) * xyz(Eigen::all, 2)).matrix()
-		, (2 * xyz(Eigen::all, 0) * xyz(Eigen::all, 2)).matrix()
-		, (2 * xyz(Eigen::all, 0) * xyz(Eigen::all, 1)).matrix()
-		, (2 * xyz(Eigen::all, 0)).matrix()
-		, (2 * xyz(Eigen::all, 1)).matrix()
-		, (2 * xyz(Eigen::all, 2)).matrix()
+	d << xyz(Eigen::placeholders::all, 0).pow(2).matrix()
+		, xyz(Eigen::placeholders::all, 1).pow(2).matrix()
+		, xyz(Eigen::placeholders::all, 2).pow(2).matrix()
+		, (2 * xyz(Eigen::placeholders::all, 1) * xyz(Eigen::placeholders::all, 2)).matrix()
+		, (2 * xyz(Eigen::placeholders::all, 0) * xyz(Eigen::placeholders::all, 2)).matrix()
+		, (2 * xyz(Eigen::placeholders::all, 0) * xyz(Eigen::placeholders::all, 1)).matrix()
+		, (2 * xyz(Eigen::placeholders::all, 0)).matrix()
+		, (2 * xyz(Eigen::placeholders::all, 1)).matrix()
+		, (2 * xyz(Eigen::placeholders::all, 2)).matrix()
 		, Eigen::MatrixXd::Ones(xyz.rows(), 1);
 
 	Eigen::MatrixXd s = d.transpose() * d;
@@ -686,7 +686,7 @@ bool GrainsAsEllipsoids::directFit(const Eigen::ArrayX3d& xyz, Eigen::ArrayXd& p
 		{
 			if (eigenValues(k) == eigenValue)
 			{
-				v = eigensolver.eigenvectors()(Eigen::all, k).real();
+				v = eigensolver.eigenvectors()(Eigen::placeholders::all, k).real();
 				break;
 			}
 		}
@@ -698,7 +698,7 @@ bool GrainsAsEllipsoids::directFit(const Eigen::ArrayX3d& xyz, Eigen::ArrayXd& p
 		{
 			if (abs(eigenValues(k)) == eigenValue)
 			{
-				v = eigensolver.eigenvectors()(Eigen::all, k).real();
+				v = eigensolver.eigenvectors()(Eigen::placeholders::all, k).real();
 				break;
 			}
 		}
@@ -710,7 +710,7 @@ bool GrainsAsEllipsoids::directFit(const Eigen::ArrayX3d& xyz, Eigen::ArrayXd& p
 		{
 			if (eigenValues(k) == eigenValue)
 			{
-				v = eigensolver.eigenvectors()(Eigen::all, k).real();
+				v = eigensolver.eigenvectors()(Eigen::placeholders::all, k).real();
 				break;
 			}
 		}
