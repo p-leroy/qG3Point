@@ -1,24 +1,27 @@
 #include "Eigen/Dense"
+#include <nanoflann.hpp>
 
+// qCC_db
 #include <ccOctree.h>
 #include <ccScalarField.h>
+#include <ccPointCloud.h>
+
+// CCCoreLib
+#include <DgmOctree.h>
+#include <Neighbourhood.h>
 
 #include <vector>
 
 #include <QObject>
 
 #include <G3PointDialog.h>
-
 #include <GrainsAsEllipsoids.h>
-
 #include <AnglesCustomPlot.h>
-
 #include <G3PointPlots.h>
 
 #pragma once
 
 class ccMainAppInterface;
-class ccPointCloud;
 
 namespace G3Point
 {
@@ -53,6 +56,38 @@ public:
 
 	template<typename T> static bool EigenArrayToFile(QString name, T array);
 
+
+    // A small adaptor to let nanoflann access ccPointCloud data
+    struct CloudAdaptor
+    {
+        const ccPointCloud* cloud;
+
+        CloudAdaptor(const ccPointCloud* c) : cloud(c) {}
+
+        // Must return the number of data points
+        inline size_t kdtree_get_point_count() const { return cloud->size(); }
+
+        // Returns the dim'th component of the idx'th point
+        inline float kdtree_get_pt(const size_t idx, int dim) const
+        {
+            if (dim == 0)
+                return cloud->getPoint(static_cast<unsigned>(idx))->x;
+            else if (dim == 1)
+                return cloud->getPoint(static_cast<unsigned>(idx))->y;
+            else
+                return cloud->getPoint(static_cast<unsigned>(idx))->z;
+        }
+
+        // Optional bounding-box computation: return false to default to a standard bbox computation loop.
+        template<class BBOX>
+        bool kdtree_get_bbox(BBOX&) const { return false; }
+    };
+
+    // Typedef for a 3D KD-tree index
+    using KDTree = nanoflann::KDTreeSingleIndexAdaptor<nanoflann::L2_Simple_Adaptor<float, CloudAdaptor>,
+                                                       CloudAdaptor,
+                                                       3 /* dim */>;
+
 private:
 	bool sfConvertToRandomRGB(const ccHObject::Container &selectedEntities, QWidget* parent);
 	void addToStack(int index, const Eigen::ArrayXi& n_donors, const Eigen::ArrayXXi& donors, std::vector<int>& stack);
@@ -70,6 +105,13 @@ private:
 	bool computeNormalsAndOrientThemWithCloudCompare();
 	void orientNormals(const Eigen::Vector3d &sensorCenter);
 	bool computeNormalsWithOpen3D();
+    static bool FindNearestNeighborsNanoFlann(ccPointCloud* cloud, unsigned globalIndex, int k,
+                                                  CCCoreLib::ReferenceCloud *points, KDTree *kdTree);
+    static bool ComputeNormsAtLevel(const CCCoreLib::DgmOctree::octreeCell& cell,
+                                        void** additionalParameters,
+                                        CCCoreLib::NormalizedProgress* nProgress=nullptr);
+    bool computeNormalsWithCloudCompare();
+    bool computeNormals();
 	bool queryNeighbors(ccPointCloud* cloud, ccMainAppInterface* appInterface, bool useParallelStrategy=true);
 	void init();
 	void showDlg();
@@ -118,5 +160,7 @@ private:
 	GrainsAsEllipsoids* m_grainsAsEllipsoids;
 
 	int m_currentNumberOfSteps;
+
+    QSharedPointer<KDTree> m_kdTree;
 };
 }

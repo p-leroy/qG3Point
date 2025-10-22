@@ -1,4 +1,6 @@
 #include "G3PointAction.h"
+#include "DgmOctreeReferenceCloud.h"
+#include "Neighbourhood.h"
 
 // CCPluginAPI
 #include <ccMainAppInterface.h>
@@ -33,7 +35,9 @@
 #include <random>
 
 // Open3D
+#ifdef USE_OPEN3D_WITH_G3POINT
 #include <open3d/geometry/PointCloud.h>
+#endif
 
 // Eigen
 #include <Eigen/Geometry>
@@ -1755,6 +1759,7 @@ void G3PointAction::orientNormals(const Eigen::Vector3d& sensorCenter)
 
 bool G3PointAction::computeNormalsWithOpen3D()
 {
+#ifdef USE_OPEN3D_WITH_G3POINT
 	// create an open3D point cloud from the original point cloud
 	std::vector<Eigen::Vector3d> points(m_cloud->size());
 	for (int index =0; index < points.size(); index++) // copy all points
@@ -1807,6 +1812,225 @@ bool G3PointAction::computeNormalsWithOpen3D()
 	}
 
 	return true;
+#else
+	return false;
+#endif
+}
+
+bool G3PointAction::FindNearestNeighborsNanoFlann(ccPointCloud* cloud,
+	                                              unsigned globalIndex,
+	                                              int kNN,
+	                                              CCCoreLib::ReferenceCloud* points,
+	                                              KDTree* kdTree)
+{
+	// Prepare query
+	const CCVector3* Q = cloud->getPoint(globalIndex);
+	float query[3] = { Q->x, Q->y, Q->z };
+
+	std::vector<size_t> retIndexes(kNN);
+	std::vector<float> outDistsSqr(kNN);
+
+		   // Perform search
+	nanoflann::KNNResultSet<float> resultSet(kNN);
+	resultSet.init(&retIndexes[0], &outDistsSqr[0]);
+	if(kdTree->findNeighbors(resultSet, &query[0]))
+	{
+		points->resize(kNN);
+		for (int i = 0; i < kNN; ++i)
+		{
+			points->setPointIndex(i, retIndexes[i]);
+		}
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
+bool G3PointAction::ComputeNormsAtLevel(const CCCoreLib::DgmOctree::octreeCell& cell,
+	                                    void** additionalParameters,
+	                                    CCCoreLib::NormalizedProgress* nProgress /*=nullptr*/)
+{
+	// additional parameters
+	NormsTableType* theNorms = static_cast<NormsTableType*>(additionalParameters[0]);
+	int* kNN = static_cast<int*>(additionalParameters[1]);
+	KDTree* kdTree = static_cast<KDTree*>(additionalParameters[2]);
+	ccPointCloud* cloud = static_cast<ccPointCloud*>(additionalParameters[3]);
+
+	CCCoreLib::DgmOctree::NearestNeighboursSearchStruct nNSS;
+	nNSS.level                = cell.level;
+	nNSS.minNumberOfNeighbors = *kNN;
+	cell.parentOctree->getCellPos(cell.truncatedCode, cell.level, nNSS.cellPos, true);
+	cell.parentOctree->computeCellCenter(nNSS.cellPos, cell.level, nNSS.cellCenter);
+
+		   // we already know which points are lying in the current cell
+	unsigned pointCount = cell.points->size();
+	nNSS.pointsInNeighbourhood.resize(pointCount);
+	CCCoreLib::DgmOctree::NeighboursSet::iterator it = nNSS.pointsInNeighbourhood.begin();
+	{
+		for (unsigned j = 0; j < pointCount; ++j, ++it)
+		{
+			it->point      = cell.points->getPointPersistentPtr(j);
+			it->pointIndex = cell.points->getPointGlobalIndex(j);
+		}
+	}
+	nNSS.alreadyVisitedNeighbourhoodSize = 1;
+
+	for (unsigned i = 0; i < pointCount; ++i)
+	{
+		cell.points->getPoint(i, nNSS.queryPoint);
+		unsigned int globalIndex = cell.points->getPointGlobalIndex(i);
+
+		CCVector3 N;
+
+		QScopedPointer<CCCoreLib::ReferenceCloud> points(new CCCoreLib::ReferenceCloud(cloud));
+		if(FindNearestNeighborsNanoFlann(cloud, globalIndex, *kNN, points.data(), kdTree))
+		{
+			CCCoreLib::Neighbourhood neighbourhood(points.data());
+			N = *neighbourhood.getLSPlaneNormal();
+		}
+		else
+		{
+			return false;
+		}
+
+		theNorms->setValue(globalIndex, N);
+
+		if (nProgress && !nProgress->oneStep())
+			return false;
+	}
+
+	return true;
+}
+
+bool G3PointAction::computeNormalsWithCloudCompare()
+{
+	unsigned pointCount = m_cloud->size();
+
+	if (!m_cloud || m_cloud->size() == 0)
+	{
+		std::cerr << "Invalid cloud.\n";
+		return false;
+	}
+
+	CloudAdaptor adaptor(m_cloud);
+
+		   // Build KD-tree (parameter: number of leaf nodes to inspect per query)
+
+	size_t leaf_max_size = 10;
+	nanoflann::KDTreeSingleIndexAdaptorFlags flags = nanoflann::KDTreeSingleIndexAdaptorFlags::None;
+	unsigned int n_thread_build = 0; // 0 => nanoflann automatically determines the number of threads to use
+
+	nanoflann::KDTreeSingleIndexAdaptorParams params(leaf_max_size, flags, n_thread_build);
+	m_kdTree.reset(new KDTree(3, adaptor, params));
+	m_kdTree->buildIndex();
+
+	ccOctree::Shared octree = m_cloud->getOctree();
+	if (octree.isNull())
+	{
+		octree.reset(new ccOctree(m_cloud));
+		if (octree->build() <= 0)
+		{
+			octree.clear();
+			return false;
+		}
+	}
+	unsigned char level = octree->findBestLevelForAGivenPopulationPerCell(m_kNN);
+
+		   // we instantiate 3D normal vectors
+	QScopedPointer<NormsTableType> theNorms(new NormsTableType);
+	QScopedPointer<NormsIndexesTableType> normsIndexes(new NormsIndexesTableType);
+	static const CCVector3 blankN(0, 0, 0);
+	if (!theNorms->resizeSafe(pointCount, true, &blankN))
+	{
+		normsIndexes->resize(0);
+		if (nullptr == octree)
+		{
+			octree.clear();
+		}
+		return false;
+	}
+	// theNorms->fill(0);
+
+	void* additionalParameters[4] = {reinterpret_cast<void*>(theNorms.data()),
+		                             reinterpret_cast<void*>(&m_kNN),
+		                             reinterpret_cast<void*>(m_kdTree.data()),
+		                             reinterpret_cast<void*>(m_cloud)};
+
+	unsigned processedCells = 0;
+	QScopedPointer<ccProgressDialog> progressCb;
+	processedCells = octree->executeFunctionForAllCellsStartingAtLevel(level,
+		                                                               &(ComputeNormsAtLevel),
+		                                                               additionalParameters,
+		                                                               m_kNN / 2,
+		                                                               m_kNN * 3,
+		                                                               true,
+		                                                               progressCb.data(),
+		                                                               "Normals Computation [G3Point]");
+
+	// error or canceled by user?
+	if (processedCells == 0 || (progressCb && progressCb->isCancelRequested()))
+	{
+		normsIndexes->resize(0);
+		return false;
+	}
+
+	if (!m_cloud->hasNormals())
+	{
+		if (!m_cloud->resizeTheNormsTable())
+		{
+			ccLog::Error(QString("Not enough memory to compute normals on cloud '%1'").arg(m_cloud->getName()));
+			return false;
+		}
+	}
+
+	// we hide normals during process
+	m_cloud->showNormals(false);
+
+	// compress the normals
+	for (unsigned i = 0; i < theNorms->currentSize(); i++)
+	{
+		const CCVector3&   N     = theNorms->at(i);
+		const CompressedNormType nCode = ccNormalVectors::GetNormIndex(N);
+		m_cloud->setPointNormalIndex(i, nCode);
+	}
+
+	// preferred orientation
+	ccNormalVectors::UpdateNormalOrientations(m_cloud, *m_cloud->normals(), ccNormalVectors::PLUS_Z);
+
+	return true;
+}
+
+bool G3PointAction::computeNormals()
+{
+	// if there are normals, already, propose to keep them
+	if (m_cloud->hasNormals())
+	{
+		QMessageBox msgBox;
+		msgBox.setInformativeText("Recompute normals?");
+		msgBox.setText("There are existing normals, keep them or recompute.");
+		QPushButton *keepButton = msgBox.addButton(tr("Keep"), QMessageBox::ActionRole);
+		QPushButton *recomputeButton = msgBox.addButton(tr("Recompute"), QMessageBox::AcceptRole);
+		QPushButton *cancelButton = msgBox.addButton(tr("Cancel"), QMessageBox::AcceptRole);
+
+		msgBox.exec();
+
+		if (msgBox.clickedButton() == keepButton)
+		{
+			return true;
+		}
+		else if (msgBox.clickedButton() == cancelButton)
+		{
+			return false;
+		}
+	}
+
+#ifdef USE_OPEN3D_WITH_G3POINT
+	return computeNormalsWithOpen3D();
+#else
+	return computeNormalsWithCloudCompare();
+#endif
 }
 
 bool G3PointAction::queryNeighbors(ccPointCloud* cloud, ccMainAppInterface* appInterface, bool useParallelStrategy)
@@ -1879,7 +2103,7 @@ void G3PointAction::segment()
 
 	computeNodeSurfaces();
 
-	computeNormalsWithOpen3D();
+	computeNormals();
 
 	// compute the centroid
 	unsigned pointCount = m_cloud->size();
