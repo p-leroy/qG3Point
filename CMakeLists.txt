@@ -64,10 +64,6 @@ if ( PLUGIN_G3POINT )
 	copy_files( "${CMAKE_CURRENT_SOURCE_DIR}/shaders/DrawGrains.fs" "${CLOUDCOMPARE_DEST_FOLDER}/shaders/G3Point" 1) #mind the quotes!
 
 	target_include_directories( ${PROJECT_NAME} PRIVATE
-		C:/Users/PaulLeroy/miniconda3/envs/env_4_CloudCompare/include
-		C:/opt/open3d-devel-windows-amd64-0.19.0/include
-		C:/opt/GeometricTools/GTE
-		C:/opt/boost_1_77_0
 		../../../../libs/qCC_db/extern/CCCoreLib/extern/nanoflann/include
 		${EIGEN_ROOT_DIR}
 	)
