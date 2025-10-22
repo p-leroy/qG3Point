@@ -1817,26 +1817,24 @@ bool G3PointAction::computeNormalsWithOpen3D()
 #endif
 }
 
-bool G3PointAction::FindNearestNeighborsNanoFlann(ccPointCloud* cloud,
-	                                              unsigned globalIndex,
-	                                              int kNN,
+bool G3PointAction::findNearestNeighborsNanoFlann(const unsigned globalIndex,
 	                                              CCCoreLib::ReferenceCloud* points,
-	                                              KDTree* kdTree)
+	                                              const KDTree* kdTree)
 {
 	// Prepare query
-	const CCVector3* Q = cloud->getPoint(globalIndex);
+	const CCVector3* Q = m_cloud->getPoint(globalIndex);
 	float query[3] = { Q->x, Q->y, Q->z };
 
-	std::vector<size_t> retIndexes(kNN);
-	std::vector<float> outDistsSqr(kNN);
+	std::vector<size_t> retIndexes(m_kNN);
+	std::vector<float> outDistsSqr(m_kNN);
 
 		   // Perform search
-	nanoflann::KNNResultSet<float> resultSet(kNN);
+	nanoflann::KNNResultSet<float> resultSet(m_kNN);
 	resultSet.init(&retIndexes[0], &outDistsSqr[0]);
 	if(kdTree->findNeighbors(resultSet, &query[0]))
 	{
-		points->resize(kNN);
-		for (int i = 0; i < kNN; ++i)
+		points->resize(m_kNN);
+		for (int i = 0; i < m_kNN; ++i)
 		{
 			points->setPointIndex(i, retIndexes[i]);
 		}
@@ -1848,58 +1846,24 @@ bool G3PointAction::FindNearestNeighborsNanoFlann(ccPointCloud* cloud,
 	}
 }
 
-bool G3PointAction::ComputeNormsAtLevel(const CCCoreLib::DgmOctree::octreeCell& cell,
-	                                    void** additionalParameters,
-	                                    CCCoreLib::NormalizedProgress* nProgress /*=nullptr*/)
+bool G3PointAction::computeNormWithFlann(unsigned index,
+										 NormsTableType* theNorms,
+										 const G3PointAction::KDTree* kdTree)
 {
-	// additional parameters
-	NormsTableType* theNorms = static_cast<NormsTableType*>(additionalParameters[0]);
-	int* kNN = static_cast<int*>(additionalParameters[1]);
-	KDTree* kdTree = static_cast<KDTree*>(additionalParameters[2]);
-	ccPointCloud* cloud = static_cast<ccPointCloud*>(additionalParameters[3]);
+	CCVector3 N;
 
-	CCCoreLib::DgmOctree::NearestNeighboursSearchStruct nNSS;
-	nNSS.level                = cell.level;
-	nNSS.minNumberOfNeighbors = *kNN;
-	cell.parentOctree->getCellPos(cell.truncatedCode, cell.level, nNSS.cellPos, true);
-	cell.parentOctree->computeCellCenter(nNSS.cellPos, cell.level, nNSS.cellCenter);
-
-		   // we already know which points are lying in the current cell
-	unsigned pointCount = cell.points->size();
-	nNSS.pointsInNeighbourhood.resize(pointCount);
-	CCCoreLib::DgmOctree::NeighboursSet::iterator it = nNSS.pointsInNeighbourhood.begin();
+	QScopedPointer<CCCoreLib::ReferenceCloud> points(new CCCoreLib::ReferenceCloud(m_cloud));
+	if(findNearestNeighborsNanoFlann(index, points.data(), kdTree))
 	{
-		for (unsigned j = 0; j < pointCount; ++j, ++it)
-		{
-			it->point      = cell.points->getPointPersistentPtr(j);
-			it->pointIndex = cell.points->getPointGlobalIndex(j);
-		}
+		CCCoreLib::Neighbourhood neighbourhood(points.data());
+		N = *neighbourhood.getLSPlaneNormal();
 	}
-	nNSS.alreadyVisitedNeighbourhoodSize = 1;
-
-	for (unsigned i = 0; i < pointCount; ++i)
+	else
 	{
-		cell.points->getPoint(i, nNSS.queryPoint);
-		unsigned int globalIndex = cell.points->getPointGlobalIndex(i);
-
-		CCVector3 N;
-
-		QScopedPointer<CCCoreLib::ReferenceCloud> points(new CCCoreLib::ReferenceCloud(cloud));
-		if(FindNearestNeighborsNanoFlann(cloud, globalIndex, *kNN, points.data(), kdTree))
-		{
-			CCCoreLib::Neighbourhood neighbourhood(points.data());
-			N = *neighbourhood.getLSPlaneNormal();
-		}
-		else
-		{
-			return false;
-		}
-
-		theNorms->setValue(globalIndex, N);
-
-		if (nProgress && !nProgress->oneStep())
-			return false;
+		return false;
 	}
+
+	theNorms->setValue(index, N);
 
 	return true;
 }
@@ -1910,71 +1874,51 @@ bool G3PointAction::computeNormalsWithCloudCompare()
 
 	if (!m_cloud || m_cloud->size() == 0)
 	{
-		std::cerr << "Invalid cloud.\n";
+		ccLog::Error("Invalid cloud.");
 		return false;
 	}
 
 	CloudAdaptor adaptor(m_cloud);
 
-		   // Build KD-tree (parameter: number of leaf nodes to inspect per query)
+	// Build KD-tree (parameter: number of leaf nodes to inspect per query)
 
 	size_t leaf_max_size = 10;
 	nanoflann::KDTreeSingleIndexAdaptorFlags flags = nanoflann::KDTreeSingleIndexAdaptorFlags::None;
 	unsigned int n_thread_build = 0; // 0 => nanoflann automatically determines the number of threads to use
 
 	nanoflann::KDTreeSingleIndexAdaptorParams params(leaf_max_size, flags, n_thread_build);
-	m_kdTree.reset(new KDTree(3, adaptor, params));
+	QSharedPointer<KDTree> m_kdTree(new KDTree(3, adaptor, params));
 	m_kdTree->buildIndex();
 
-	ccOctree::Shared octree = m_cloud->getOctree();
-	if (octree.isNull())
-	{
-		octree.reset(new ccOctree(m_cloud));
-		if (octree->build() <= 0)
-		{
-			octree.clear();
-			return false;
-		}
-	}
-	unsigned char level = octree->findBestLevelForAGivenPopulationPerCell(m_kNN);
-
-		   // we instantiate 3D normal vectors
-	QScopedPointer<NormsTableType> theNorms(new NormsTableType);
+	// we instantiate 3D normal vectors
+	QSharedPointer<NormsTableType> theNorms(new NormsTableType);
 	QScopedPointer<NormsIndexesTableType> normsIndexes(new NormsIndexesTableType);
 	static const CCVector3 blankN(0, 0, 0);
 	if (!theNorms->resizeSafe(pointCount, true, &blankN))
 	{
 		normsIndexes->resize(0);
-		if (nullptr == octree)
-		{
-			octree.clear();
-		}
 		return false;
 	}
-	// theNorms->fill(0);
 
-	void* additionalParameters[4] = {reinterpret_cast<void*>(theNorms.data()),
-		                             reinterpret_cast<void*>(&m_kNN),
-		                             reinterpret_cast<void*>(m_kdTree.data()),
-		                             reinterpret_cast<void*>(m_cloud)};
-
-	unsigned processedCells = 0;
-	QScopedPointer<ccProgressDialog> progressCb;
-	processedCells = octree->executeFunctionForAllCellsStartingAtLevel(level,
-		                                                               &(ComputeNormsAtLevel),
-		                                                               additionalParameters,
-		                                                               m_kNN / 2,
-		                                                               m_kNN * 3,
-		                                                               true,
-		                                                               progressCb.data(),
-		                                                               "Normals Computation [G3Point]");
-
-	// error or canceled by user?
-	if (processedCells == 0 || (progressCb && progressCb->isCancelRequested()))
+	ccLog::Print("[computeNormalsWithCloudCompare]");
+#ifdef QT_DEBUG
+	//manually call the static per-point method!
+	for (unsigned index = 0; index < pointCount; ++index)
 	{
-		normsIndexes->resize(0);
-		return false;
+		computeNormWithFlann(index, theNorms.data(), m_kNN, m_kdTree.data(), m_cloud);
 	}
+#else
+	std::vector<unsigned> pointsIndexes;
+	pointsIndexes.resize(pointCount);
+	for (unsigned i = 0; i < pointCount; ++i)
+	{
+		pointsIndexes[i] = i;
+	}
+	int threadCount = std::max(1, ccQtHelpers::GetMaxThreadCount() - 2);
+	ccLog::Print("[computeNormalsWithCloudCompare] parallel strategy, thread count " + QString::number(threadCount));
+	QThreadPool::globalInstance()->setMaxThreadCount(threadCount);
+	QtConcurrent::blockingMap(pointsIndexes, [=](int index){computeNormWithFlann(index, theNorms.data(), m_kdTree.data());});
+#endif
 
 	if (!m_cloud->hasNormals())
 	{
@@ -1997,6 +1941,7 @@ bool G3PointAction::computeNormalsWithCloudCompare()
 	}
 
 	// preferred orientation
+	ccLog::Print("[computeNormalsWithCloudCompare] orient normals, PLUS_Z ");
 	ccNormalVectors::UpdateNormalOrientations(m_cloud, *m_cloud->normals(), ccNormalVectors::PLUS_Z);
 
 	return true;
@@ -2011,7 +1956,7 @@ bool G3PointAction::computeNormals()
 		msgBox.setInformativeText("Recompute normals?");
 		msgBox.setText("There are existing normals, keep them or recompute.");
 		QPushButton *keepButton = msgBox.addButton(tr("Keep"), QMessageBox::ActionRole);
-		QPushButton *recomputeButton = msgBox.addButton(tr("Recompute"), QMessageBox::AcceptRole);
+		msgBox.addButton(tr("Recompute"), QMessageBox::AcceptRole);
 		QPushButton *cancelButton = msgBox.addButton(tr("Cancel"), QMessageBox::AcceptRole);
 
 		msgBox.exec();

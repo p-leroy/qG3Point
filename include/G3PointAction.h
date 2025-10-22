@@ -105,11 +105,8 @@ private:
 	bool computeNormalsAndOrientThemWithCloudCompare();
 	void orientNormals(const Eigen::Vector3d &sensorCenter);
 	bool computeNormalsWithOpen3D();
-    static bool FindNearestNeighborsNanoFlann(ccPointCloud* cloud, unsigned globalIndex, int k,
-                                                  CCCoreLib::ReferenceCloud *points, KDTree *kdTree);
-    static bool ComputeNormsAtLevel(const CCCoreLib::DgmOctree::octreeCell& cell,
-                                        void** additionalParameters,
-                                        CCCoreLib::NormalizedProgress* nProgress=nullptr);
+	bool findNearestNeighborsNanoFlann(const unsigned int globalIndex, CCCoreLib::ReferenceCloud *points, const KDTree *kdTree);
+	bool computeNormWithFlann(unsigned int index, NormsTableType* theNorms, const KDTree *kdTree);
     bool computeNormalsWithCloudCompare();
     bool computeNormals();
 	bool queryNeighbors(ccPointCloud* cloud, ccMainAppInterface* appInterface, bool useParallelStrategy=true);
@@ -160,7 +157,5 @@ private:
 	GrainsAsEllipsoids* m_grainsAsEllipsoids;
 
 	int m_currentNumberOfSteps;
-
-    QSharedPointer<KDTree> m_kdTree;
 };
 }
