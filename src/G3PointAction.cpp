@@ -1913,7 +1913,7 @@ bool G3PointAction::computeNormalsWithCloudCompare()
 	//manually call the static per-point method!
 	for (unsigned index = 0; index < pointCount; ++index)
 	{
-		computeNormWithFlann(index, theNorms.data(), m_kNN, m_kdTree.data(), m_cloud);
+		computeNormWithFlann(index, theNorms.data(), m_kdTree.data());
 	}
 #else
 	std::vector<unsigned> pointsIndexes;
