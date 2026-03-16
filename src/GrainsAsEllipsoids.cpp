@@ -719,6 +719,11 @@ bool GrainsAsEllipsoids::directFit(const Eigen::ArrayX3d& xyz, Eigen::ArrayXd& p
 
 	parameters.resize(10);
 
+	if (v.rows() != 10 || v.cols() != 1)
+	{
+		return false; // Invalid eigenvector size
+	}
+
 	parameters << v(0), v(1), v(2)
 		, 2 * v(5), 2 * v(4), 2* v(3)
 		, 2 * v(6), 2 * v(7), 2 * v(8)
