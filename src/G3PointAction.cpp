@@ -106,7 +106,7 @@ void G3PointAction::GetG3PointAction(ccPointCloud *cloud, ccMainAppInterface *ap
 
 RGBAColorsTableType getRandomColors(size_t randomColorsNumber)
 {
-	Q_ASSERT(randomColorsNumber > 1);
+	Q_ASSERT(randomColorsNumber > 0);
 
 	RGBAColorsTableType randomColors;
 	if (!randomColors.reserveSafe(static_cast<unsigned>(randomColorsNumber)))
@@ -2016,6 +2016,16 @@ void G3PointAction::segment()
 {
 	init();
 
+	unsigned pointCount = m_cloud->size();
+	if (m_kNN >= pointCount)
+	{
+		m_dlg->setWindowFlag(Qt::WindowStaysOnTopHint, false);
+		ccLog::Error("The point cloud is too small wrt the kNN value, cancel processing");
+		m_dlg->setWindowFlag(Qt::WindowStaysOnTopHint, true);
+		m_dlg->show();
+		return;
+	}
+
 	// Find neighbors of each point of the cloud
 	bool useParallelStrategy;
 #ifdef NDEBUG
@@ -2030,7 +2040,6 @@ void G3PointAction::segment()
 	computeNormals();
 
 	// compute the centroid
-	unsigned pointCount = m_cloud->size();
 	CCVector3d G(0, 0, 0);
 	{
 		for (unsigned i = 0; i < pointCount; ++i)
