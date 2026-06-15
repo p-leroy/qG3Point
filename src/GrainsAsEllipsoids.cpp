@@ -119,6 +119,98 @@ void GrainsAsEllipsoids::setGrainColorsTable(const RGBAColorsTableType& colorTab
 	}
 }
 
+bool GrainsAsEllipsoids::GetAzimuthAndDir(QVector<double>& granuloAngleMView, QVector<double>& granuloAngleXView, GrainsAsEllipsoids* grainsAsEllipsoids)
+{
+	if (grainsAsEllipsoids == nullptr)
+	{
+		ccLog::Error("[G3PointAction::getDipDir] grainAsEllipsoids is null");
+		return false;
+	}
+
+	if (grainsAsEllipsoids->m_rotationMatrix.empty())
+	{
+		ccLog::Error("[G3PointAction::getDipDir] m_rotationMatrix is empty");
+		return false;
+	}
+
+	float delta        = static_cast<float>(1e32);
+	int   n_ellipsoids = static_cast<float>(grainsAsEllipsoids->m_rotationMatrix.size());
+	granuloAngleMView.resize(n_ellipsoids);
+	granuloAngleXView.resize(n_ellipsoids);
+
+	for (int i = 0; i < n_ellipsoids; i++)
+	{
+		float u, v, w;
+
+		Eigen::Vector3f p2{grainsAsEllipsoids->m_rotationMatrix[i](2, 0), // Yes, this is the last row
+		                   grainsAsEllipsoids->m_rotationMatrix[i](2, 1),
+		                   grainsAsEllipsoids->m_rotationMatrix[i](2, 2)};
+
+		// x-y plot - mapview (angle with y axis)
+		Eigen::Vector3f p1{grainsAsEllipsoids->m_center[i].x(),
+		                   grainsAsEllipsoids->m_center[i].y() + delta,
+		                   grainsAsEllipsoids->m_center[i].z()};
+		float           angle = atan2(p1.cross(p2).norm(), p1.dot(p2));
+		u                     = p2(0);
+		v                     = p2(1);
+		if ((angle > M_PI / 2) || (angle < -M_PI / 2))
+		{
+			u = -u;
+			v = -v;
+		}
+		granuloAngleMView[i] = (atan(v / u) + M_PI / 2) * 180 / M_PI;
+
+		// x-z plot
+		p1 << grainsAsEllipsoids->m_center[i].x(),
+		    grainsAsEllipsoids->m_center[i].y(),
+		    grainsAsEllipsoids->m_center[i].z() + delta;
+		angle = atan2(p1.cross(p2).norm(), p1.dot(p2));
+		v     = p2(1);
+		w     = p2(2);
+		if ((angle > M_PI / 2) || (angle < -M_PI / 2))
+		{
+			v = -v;
+			w = -w;
+		}
+		granuloAngleXView[i] = (atan(v / w) + M_PI / 2) * 180 / M_PI;
+	}
+
+	return true;
+}
+
+bool GrainsAsEllipsoids::GetDipAndDipDir(QVector<double>& granuloAngleMView, QVector<double>& granuloAngleXView, GrainsAsEllipsoids* grainsAsEllipsoids)
+{
+	if (grainsAsEllipsoids == nullptr)
+	{
+		ccLog::Error("[G3PointAction::getDipDir] grainAsEllipsoids is null");
+		return false;
+	}
+
+	if (grainsAsEllipsoids->m_rotationMatrix.empty())
+	{
+		ccLog::Error("[G3PointAction::getDipDir] m_rotationMatrix is empty");
+		return false;
+	}
+
+	int n_ellipsoids = static_cast<float>(grainsAsEllipsoids->m_rotationMatrix.size());
+	granuloAngleMView.resize(n_ellipsoids);
+	granuloAngleXView.resize(n_ellipsoids);
+
+	for (int i = 0; i < n_ellipsoids; i++)
+	{
+		const CCVector3f    N{grainsAsEllipsoids->m_rotationMatrix[i](2, 0), // Yes, this is the last row
+                           grainsAsEllipsoids->m_rotationMatrix[i](2, 1),
+                           grainsAsEllipsoids->m_rotationMatrix[i](2, 2)};
+		PointCoordinateType dip    = atan(N.z) * 180 / M_PI;
+		PointCoordinateType dipDir = atan2(N.x, -N.y) * 180 / M_PI; // Ensure clockwise measurement from the y-axis
+
+		granuloAngleMView[i] = dipDir;
+		granuloAngleXView[i] = dip;
+	}
+
+	return true;
+}
+
 bool GrainsAsEllipsoids::exportResultsAsCloud()
 {
 	// create cloud
@@ -173,9 +265,9 @@ bool GrainsAsEllipsoids::exportResultsAsCloud()
 	sf->computeMinAndMax();
 
 	// <EXPORT RADII>
-	int sfIdxRadiusX = cloud->addScalarField("g3point_radius_x");
-	int sfIdxRadiusY = cloud->addScalarField("g3point_radius_y");
-	int sfIdxRadiusZ = cloud->addScalarField("g3point_radius_z");
+	int sfIdxRadiusX = cloud->addScalarField("g3point_diameter_x");
+	int sfIdxRadiusY = cloud->addScalarField("g3point_diameter_y");
+	int sfIdxRadiusZ = cloud->addScalarField("g3point_diameter_z");
 	if (sfIdxRadiusX == -1 || sfIdxRadiusY == -1 || sfIdxRadiusZ == -1)
 	{
 		ccLog::Error("[GrainsAsEllipsoids::exportResultsAsCloud] impossible to allocate scalar fields to export the radii");
@@ -190,67 +282,36 @@ bool GrainsAsEllipsoids::exportResultsAsCloud()
 		// {
 		// 	continue;
 		// }
-		sfRadiusX->setValue(index, m_radii[index].x());
-		sfRadiusY->setValue(index, m_radii[index].y());
-		sfRadiusZ->setValue(index, m_radii[index].z());
+		sfRadiusX->setValue(index, 2 * m_radii[index].x());
+		sfRadiusY->setValue(index, 2 * m_radii[index].y());
+		sfRadiusZ->setValue(index, 2 * m_radii[index].z());
 	}
 	sfRadiusX->computeMinAndMax();
 	sfRadiusY->computeMinAndMax();
 	sfRadiusZ->computeMinAndMax();
 	// </EXPORT RADII>
 
-	// <EXPORT ROTATION>
-	int sfIdxR00 = cloud->addScalarField("g3point_r00");
-	int sfIdxR01 = cloud->addScalarField("g3point_r01");
-	int sfIdxR02 = cloud->addScalarField("g3point_r02");
-	int sfIdxR10 = cloud->addScalarField("g3point_r10");
-	int sfIdxR11 = cloud->addScalarField("g3point_r11");
-	int sfIdxR21 = cloud->addScalarField("g3point_r12");
-	int sfIdxR20 = cloud->addScalarField("g3point_r20");
-	int sfIdxR12 = cloud->addScalarField("g3point_r21");
-	int sfIdxR22 = cloud->addScalarField("g3point_r22");
-	if (sfIdxR00 == -1 || sfIdxR01 == -1 || sfIdxR02 == -1
-		|| sfIdxR10 == -1 || sfIdxR11 == -1 || sfIdxR12 == -1
-		|| sfIdxR20 == -1 || sfIdxR21 == -1 || sfIdxR22 == -1)
+	// <EXPORT AZIMUTH / DIP>
+	QVector<double> granuloAngleMView;
+	QVector<double> granuloAngleXView;
+	GetAzimuthAndDir(granuloAngleMView, granuloAngleXView, this);
+	int sfIdxazimuth = cloud->addScalarField("g3point_azimuth");
+	int sfIdxDip     = cloud->addScalarField("g3point_dip");
+	if (sfIdxazimuth == -1 || sfIdxDip == -1)
 	{
-		ccLog::Error("[GrainsAsEllipsoids::exportResultsAsCloud] impossible to allocate scalar fields to export the rotation");
+		ccLog::Error("[GrainsAsEllipsoids::exportResultsAsCloud] impossible to allocate scalar fields to export azimuth and dip");
 		return false;
 	}
-	CCCoreLib::ScalarField* sfR00 = cloud->getScalarField(sfIdxR00);
-	CCCoreLib::ScalarField* sfR01 = cloud->getScalarField(sfIdxR01);
-	CCCoreLib::ScalarField* sfR02 = cloud->getScalarField(sfIdxR02);
-	CCCoreLib::ScalarField* sfR10 = cloud->getScalarField(sfIdxR10);
-	CCCoreLib::ScalarField* sfR11 = cloud->getScalarField(sfIdxR11);
-	CCCoreLib::ScalarField* sfR12 = cloud->getScalarField(sfIdxR12);
-	CCCoreLib::ScalarField* sfR20 = cloud->getScalarField(sfIdxR20);
-	CCCoreLib::ScalarField* sfR21 = cloud->getScalarField(sfIdxR21);
-	CCCoreLib::ScalarField* sfR22 = cloud->getScalarField(sfIdxR22);
+	CCCoreLib::ScalarField* sfazimuth = cloud->getScalarField(sfIdxazimuth);
+	CCCoreLib::ScalarField* sfDip     = cloud->getScalarField(sfIdxDip);
 	for (unsigned int index = 0; index < cloud->size(); index++)
 	{
-		// if (m_fitNotOK.count(index))
-		// {
-		// 	continue;
-		// }
-		sfR00->setValue(index, m_rotationMatrix[index](0, 0));
-		sfR01->setValue(index, m_rotationMatrix[index](0, 1));
-		sfR02->setValue(index, m_rotationMatrix[index](0, 2));
-		sfR10->setValue(index, m_rotationMatrix[index](1, 0));
-		sfR11->setValue(index, m_rotationMatrix[index](1, 1));
-		sfR12->setValue(index, m_rotationMatrix[index](1, 2));
-		sfR20->setValue(index, m_rotationMatrix[index](2, 0));
-		sfR21->setValue(index, m_rotationMatrix[index](2, 1));
-		sfR22->setValue(index, m_rotationMatrix[index](2, 2));
+		sfazimuth->setValue(index, granuloAngleMView[index]);
+		sfDip->setValue(index, granuloAngleXView[index]);
 	}
-	sfR00->computeMinAndMax();
-	sfR01->computeMinAndMax();
-	sfR02->computeMinAndMax();
-	sfR10->computeMinAndMax();
-	sfR11->computeMinAndMax();
-	sfR12->computeMinAndMax();
-	sfR20->computeMinAndMax();
-	sfR21->computeMinAndMax();
-	sfR22->computeMinAndMax();
-	// </EXPORT ROTATION>
+	sfazimuth->computeMinAndMax();
+	sfDip->computeMinAndMax();
+	// </EXPORT AZIMUTH / DIP>
 
 	cloud->showColors(true);
 	cloud->setPointSize(9);
@@ -789,32 +850,25 @@ bool GrainsAsEllipsoids::fitEllipsoidToGrain(const int grainIndex,
 	center = center / scale + Eigen::Array3f(means.cast<float>());
 	radii = radii / scale;
 
-	// re-order the radii
-	std::vector<float> sortedRadii{radii(0), radii(1), radii(2)};
-	std::sort(sortedRadii.begin(), sortedRadii.end());
-	Eigen::Array3f updatedRadii = {sortedRadii[0], sortedRadii[1], sortedRadii[2]}; // from the smallest to the largest
+	// Re-order radii and corresponding rotation matrix columns (ascending, z = largest)
+	std::array<int, 3> order = {0, 1, 2};
+	std::sort(order.begin(), order.end(), [&](int a, int b)
+	          { return radii(a) < radii(b); });
+
+	Eigen::Array3f  updatedRadii;
 	Eigen::Matrix3f updatedRotationMatrix;
+
 	for (int k = 0; k < 3; k++)
 	{
-		float radius = updatedRadii(k);
-		int col = 0;
-		for (int idx = 0; idx < 3; idx++)
-		{
-			if (radii[idx] == radius)
-			{
-				break;
-			}
-			col++;
-		}
-		updatedRotationMatrix(k, 0) = rotationMatrix(col, 0);
-		updatedRotationMatrix(k, 1) = rotationMatrix(col, 1);
-		updatedRotationMatrix(k, 2) = rotationMatrix(col, 2);
+		int srcIdx                   = order[k];
+		updatedRadii(k)              = radii(srcIdx);
+		updatedRotationMatrix.row(k) = rotationMatrix.row(srcIdx); // This strange but we have to work on rows and .transpose() when drawing
 	}
 
-	radii = updatedRadii;
+	radii          = updatedRadii;
 	rotationMatrix = updatedRotationMatrix;
 
-	ret = explicitToImplicit(center, radii, rotationMatrix, p);
+	ret = explicitToImplicit(center, radii, rotationMatrix, p); // Is it really necessary?
 
 	return ret;
 }

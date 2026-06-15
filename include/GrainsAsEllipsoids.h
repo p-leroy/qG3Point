@@ -43,6 +43,10 @@ public:
 
 	void setGrainColorsTable(const RGBAColorsTableType& colorTable);
 
+	static bool GetAzimuthAndDir(QVector<double>& granuloAngleMView, QVector<double>& granuloAngleXView, GrainsAsEllipsoids* grainsAsEllipsoids);
+
+	static bool GetDipAndDipDir(QVector<double>& granuloAngleMView, QVector<double>& granuloAngleXView, GrainsAsEllipsoids* grainsAsEllipsoids);
+
 	bool exportResultsAsCloud();
 
 	// INIT SPHERE

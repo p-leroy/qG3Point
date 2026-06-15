@@ -1311,47 +1311,11 @@ bool G3PointAction::angles()
 		return false;
 	}
 
-	float delta = static_cast<float>(1e32);
 	int n_ellipsoids = static_cast<float>(m_grainsAsEllipsoids->m_rotationMatrix.size());
 	QVector<double> granuloAngleMView(n_ellipsoids);
 	QVector<double> granuloAngleXView(n_ellipsoids);
 
-	for (int i = 0; i < n_ellipsoids; i++)
-	{
-		float u, v, w;
-
-		Eigen::Vector3f p2 {m_grainsAsEllipsoids->m_rotationMatrix[i](0, 0),
-						   m_grainsAsEllipsoids->m_rotationMatrix[i](1, 0),
-						   m_grainsAsEllipsoids->m_rotationMatrix[i](2, 0)};
-
-		// x-y plot - mapview (angle with y axis)
-		Eigen::Vector3f p1 {m_grainsAsEllipsoids->m_center[i].x(),
-						   m_grainsAsEllipsoids->m_center[i].y() + delta,
-						   m_grainsAsEllipsoids->m_center[i].z()};
-		float angle = atan2(p1.cross(p2).norm(), p1.dot(p2));
-		u = p2(0);
-		v = p2(1);
-		if ((angle > M_PI / 2) || (angle < - M_PI / 2))
-		{
-			u = -u;
-			v = -v;
-		}
-		granuloAngleMView[i] = (atan(v / u) + M_PI / 2) * 180 / M_PI;
-
-		// x-z plot
-		p1 << m_grainsAsEllipsoids->m_center[i].x(),
-			m_grainsAsEllipsoids->m_center[i].y(),
-			m_grainsAsEllipsoids->m_center[i].z() + delta;
-		angle = atan2(p1.cross(p2).norm(), p1.dot(p2));
-		v = p2(0);
-		w = p2(1);
-		if ((angle > M_PI / 2) || (angle < - M_PI / 2))
-		{
-			v = -v;
-			w = -w;
-		}
-		granuloAngleXView[i] = (atan(v / w) + M_PI / 2) * 180 / M_PI;
-	}
+	GrainsAsEllipsoids::GetAzimuthAndDir(granuloAngleMView, granuloAngleXView, m_grainsAsEllipsoids);
 
 	// QCustomPlot
 	if (!s_g3PointPlots)
