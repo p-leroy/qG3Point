@@ -838,10 +838,10 @@ bool G3PointAction::cluster()
 	Eigen::ArrayXXd D1(nlabels, nlabels);
 	if (m_localMaximumIndexes.size() != nlabels)
 	{
-		ccLog::Error("[G3PointAction::cluster] m_localMaximumIndexes size ("
-					 + QString::number(m_localMaximumIndexes.size())
-					 + ") different from nlabels "
-					 + QString::number(nlabels));
+		ccLog::Warning("[G3PointAction::cluster] m_localMaximumIndexes size ("
+			           + QString::number(m_localMaximumIndexes.size())
+			           + ") different from nlabels "
+			           + QString::number(nlabels));
 		return false;
 	}
 	for (int i = 0; i < nlabels; i++)
@@ -909,7 +909,7 @@ bool G3PointAction::cluster()
 
 	if (!checkStacks(m_stacks, m_cloud->size()))
 	{
-		ccLog::Error("m_stacks is not valid");
+		ccLog::Warning("m_stacks is not valid");
 		return false;
 	}
 
@@ -1967,6 +1967,7 @@ bool G3PointAction::computeNormals()
 		msgBox.addButton(tr("Recompute"), QMessageBox::AcceptRole);
 		QPushButton *cancelButton = msgBox.addButton(tr("Cancel"), QMessageBox::AcceptRole);
 
+		msgBox.setWindowFlag(Qt::WindowStaysOnTopHint, true);
 		msgBox.exec();
 
 		if (msgBox.clickedButton() == keepButton)
@@ -2112,7 +2113,10 @@ void G3PointAction::clusterAndOrClean()
 	{
 		if (!cluster())
 		{
+			m_dlg->setWindowFlag(Qt::WindowStaysOnTopHint, false);
 			ccLog::Error("[G3PointAction::clusterAndOrClean] clustering failed");
+			m_dlg->setWindowFlag(Qt::WindowStaysOnTopHint, true);
+			m_dlg->show();
 			return;
 		}
 	}
@@ -2121,7 +2125,10 @@ void G3PointAction::clusterAndOrClean()
 	{
 		if (!cleanLabels())
 		{
+			m_dlg->setWindowFlag(Qt::WindowStaysOnTopHint, false);
 			ccLog::Error("[G3PointAction::clusterAndOrClean] cleaning failed");
+			m_dlg->setWindowFlag(Qt::WindowStaysOnTopHint, true);
+			m_dlg->show();
 			return;
 		}
 	}
