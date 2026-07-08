@@ -252,7 +252,7 @@ int G3PointAction::segmentLabels(bool useParallelStrategy)
 	}
 
 	// if the minimum slope is positive, the receiver is a local maximum
-	int nb_maxima = (min_slopes > 0).count();
+	int            nb_maxima           = (min_slopes > 0).count();
 	Eigen::ArrayXi localMaximumIndexes = Eigen::ArrayXi::Zero(nb_maxima);
 	int l = 0;
 	for (unsigned int k = 0; k < m_cloud->size(); k++)
@@ -820,8 +820,15 @@ bool G3PointAction::keep(Xb& condition)
 template<typename T>
 bool G3PointAction::EigenArrayToFile(QString name, T array)
 {
+	QDir dir = QDir::home();
+	if (!dir.mkpath("g3point"))
+	{
+		ccLog::Error("Impossible to create g3point directory in: " + dir.path());
+	}
+	QString filename = dir.path() + "/g3point/" + name;
+	ccLog::Print("Save eigen array to file " + filename);
 	const Eigen::IOFormat CSVFormat(Eigen::StreamPrecision, Eigen::DontAlignCols, ", ", "\n");
-	std::ofstream file(name.toLatin1());
+	std::ofstream         file(filename.toLatin1());
 	file << array.format(CSVFormat);
 	return true;
 }
@@ -899,7 +906,7 @@ bool G3PointAction::cluster()
 		k++;
 	}
 
-	Eigen::ArrayXXd A = computeMeanAngleBetweenNormalsAtBorders();
+	Eigen::ArrayXXd Aangle = computeMeanAngleBetweenNormalsAtBorders();
 
 	// merge labels if sinks are
 	// => close to each other (Dist == 1)
@@ -914,10 +921,13 @@ bool G3PointAction::cluster()
 	}
 
 	// create the condition matrix and force the symmetry of the matrix
-	XXb condition = (Dist < 1) || (Nneigh < 1) || (A > m_maxAngle1) || (A != A);
+	XXb condition             = (Dist < 1) || (Nneigh < 1) || (Aangle > m_maxAngle1) || (Aangle != Aangle);
 	XXb symmetrical_condition = (condition == condition.transpose()).select(condition, true);
 	symmetrical_condition.count();
 	condition = symmetrical_condition;
+
+	EigenArrayToFile("Aangle.csv", Aangle);
+	EigenArrayToFile("condition.csv", symmetrical_condition);
 
 	std::vector<std::vector<int>> newStacks;
 	Eigen::ArrayXi newLabels = Eigen::ArrayXi::Ones(m_labels.size()) * (-1);
@@ -1742,7 +1752,7 @@ bool G3PointAction::computeNormalsWithOpen3D()
 
 	// compute the normals
 	pcd.EstimateNormals(open3d::geometry::KDTreeSearchParamKNN(m_kNN));
-
+	ccLog::Print("[computeNormalsWithOpen3D]");
 
 	// we 'compress' each normal
 	int pointCount = m_cloud->size();
@@ -1800,7 +1810,7 @@ bool G3PointAction::findNearestNeighborsNanoFlann(const unsigned globalIndex,
 	std::vector<size_t> retIndexes(m_kNN);
 	std::vector<float> outDistsSqr(m_kNN);
 
-		   // Perform search
+	// Perform search
 	nanoflann::KNNResultSet<float> resultSet(m_kNN);
 	resultSet.init(&retIndexes[0], &outDistsSqr[0]);
 	if(kdTree->findNeighbors(resultSet, &query[0]))
@@ -1873,6 +1883,14 @@ bool G3PointAction::computeNormalsWithCloudCompare()
 	}
 
 	ccLog::Print("[computeNormalsWithCloudCompare]");
+
+	QProgressDialog progress("Computing normals with CloudCompare.", "Cancel", 0, pointCount, this->m_dlg);
+	progress.setWindowModality(Qt::WindowModal);
+	progress.setMinimumDuration(0); // Show immediately
+
+	std::atomic<int>  processed(0);
+	std::atomic<bool> canceled(false);
+
 #ifdef QT_DEBUG
 	//manually call the static per-point method!
 	for (unsigned index = 0; index < pointCount; ++index)
@@ -1886,10 +1904,39 @@ bool G3PointAction::computeNormalsWithCloudCompare()
 	{
 		pointsIndexes[i] = i;
 	}
-	int threadCount = std::max(1, ccQtHelpers::GetMaxThreadCount() - 2);
-	ccLog::Print("[computeNormalsWithCloudCompare] parallel strategy, thread count " + QString::number(threadCount));
-	QThreadPool::globalInstance()->setMaxThreadCount(threadCount);
-	QtConcurrent::blockingMap(pointsIndexes, [=](int index){computeNormWithFlann(index, theNorms.data(), m_kdTree.data());});
+
+	// Worker lambda (runs in parallel)
+	auto worker = [&](int index) -> int
+	{
+		if (canceled)
+			return 0;
+		computeNormWithFlann(index, theNorms.data(), m_kdTree.data());
+		processed.fetch_add(1);
+		return 0;
+	};
+
+	// Start parallel processing
+	QFuture<int>        future = QtConcurrent::mapped(pointsIndexes, worker);
+	QFutureWatcher<int> watcher;
+	watcher.setFuture(future);
+
+	// Timer to update progress bar (every 50ms)
+	QTimer timer;
+	QObject::connect(&timer, &QTimer::timeout, [&]()
+		             {
+		progress.setValue(processed.load());
+		if (progress.wasCanceled()) {
+			canceled = true;
+			watcher.cancel();
+		} });
+	timer.start(50);
+
+	// Show dialog (modal, but allows event processing)
+	progress.exec();
+
+	timer.stop();
+	progress.setValue(pointsIndexes.size());
+
 #endif
 
 	if (!m_cloud->hasNormals())
@@ -1916,6 +1963,13 @@ bool G3PointAction::computeNormalsWithCloudCompare()
 	ccLog::Print("[computeNormalsWithCloudCompare] orient normals, PLUS_Z ");
 	ccNormalVectors::UpdateNormalOrientations(m_cloud, *m_cloud->normals(), ccNormalVectors::PLUS_Z);
 
+	for (int i = 0; i < pointCount; i++)
+	{
+		m_normals(i, 0) = theNorms->at(i).x;
+		m_normals(i, 1) = theNorms->at(i).y;
+		m_normals(i, 2) = theNorms->at(i).z;
+	}
+
 	return true;
 }
 
@@ -1925,20 +1979,14 @@ bool G3PointAction::computeNormals()
 	if (m_cloud->hasNormals())
 	{
 		QMessageBox msgBox;
-		msgBox.setInformativeText("Recompute normals?");
+		msgBox.addButton(tr("Keep"), QMessageBox::YesRole);
+		msgBox.addButton(tr("Recalculate"), QMessageBox::NoRole);
 		msgBox.setText("There are existing normals, keep them or recompute.");
-		QPushButton *keepButton = msgBox.addButton(tr("Keep"), QMessageBox::ActionRole);
-		msgBox.addButton(tr("Recompute"), QMessageBox::AcceptRole);
-		QPushButton *cancelButton = msgBox.addButton(tr("Cancel"), QMessageBox::AcceptRole);
 
 		msgBox.setWindowFlag(Qt::WindowStaysOnTopHint, true);
-		msgBox.exec();
+		int ret = msgBox.exec();
 
-		if (msgBox.clickedButton() == keepButton)
-		{
-			return true;
-		}
-		else if (msgBox.clickedButton() == cancelButton)
+		if (ret == QMessageBox::No)
 		{
 			return false;
 		}
