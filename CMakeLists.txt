@@ -11,28 +11,16 @@ if ( PLUGIN_G3POINT )
 
 	AddPlugin( NAME ${PROJECT_NAME} )
 
-	target_sources(G3PointPlugin
-		PRIVATE
-		ui/WolmanCustomPlot.ui
-	)
+target_sources(G3PointPlugin
+	PRIVATE
+	ui/WolmanCustomPlot.ui
+)
 
 	set(QG3POINT_PLUGIN_VERSION "0.6")
 
 	add_subdirectory( include )
 	add_subdirectory( src )
 	add_subdirectory( ui )
-
-	# target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_17)  # for mlpack
-	
-	# may be needed for debug
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /bigobj")
-
-	#============
-	# QCUSTOMPLOT
-	target_link_libraries(${PROJECT_NAME}
-		QCustomPlot
-		Qt6::PrintSupport
-		)
 
 	# EIGEN
 	set( EIGEN_ROOT_DIR "" CACHE PATH "Eigen root (contains the Eigen directory)" )
@@ -42,24 +30,42 @@ if ( PLUGIN_G3POINT )
 		message( STATUS "EIGEN_ROOT_DIR " ${EIGEN_ROOT_DIR} )
 	endif()
 
-	# OPEN3D
-	option(USE_OPEN3D_WITH_G3POINT "Enable the use of Open3D with G3Point" OFF)
-	if (USE_OPEN3D_WITH_G3POINT)
-		find_package( Open3D REQUIRED ) # Find installed Open3D, which exports Open3D::Open3D
-		target_link_libraries( ${PROJECT_NAME} Open3D::Open3D )
-		if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-			set( OPENCV_DEP_DLL_FILES
-				${Open3D_DIR}/../bin/Open3D.dll
-				${Open3D_DIR}/../bin/tbb12_debug.dll)
-		elseif(CMAKE_BUILD_TYPE STREQUAL "Release" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
-			set( OPENCV_DEP_DLL_FILES
-				${Open3D_DIR}/../bin/Open3D.dll
-				${Open3D_DIR}/../bin/tbb12.dll)
-		endif()
-		message( "Open3D_DIR ${Open3D_DIR}" )
-		copy_files( "${OPENCV_DEP_DLL_FILES}" "${CLOUDCOMPARE_DEST_FOLDER}" 1) #mind the quotes!
-	endif()
+	# BOOST
+	find_package(Boost REQUIRED)
+	message(STATUS "Boost_VERSION: ${Boost_VERSION}")
+	message(STATUS "Boost_INCLUDE_DIRS: ${Boost_INCLUDE_DIRS}")
 
+	# OPEN3D
+	find_package( Open3D REQUIRED )  # Find installed Open3D, which exports Open3D::Open3D
+	message( "Open3D_DIR ${Open3D_DIR}" )
+	if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+		set( OPENCV_DEP_DLL_FILES
+			${Open3D_DIR}/../bin/Open3D.dll
+			${Open3D_DIR}/../bin/tbb12_debug.dll)
+	elseif(CMAKE_BUILD_TYPE STREQUAL "Release" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
+		set( OPENCV_DEP_DLL_FILES
+			${Open3D_DIR}/../bin/Open3D.dll
+			${Open3D_DIR}/../bin/tbb12.dll)
+	endif()
+	copy_files( "${OPENCV_DEP_DLL_FILES}" "${CLOUDCOMPARE_DEST_FOLDER}" 1) #mind the quotes!
+
+	# may be needed for debug
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /bigobj")
+
+	target_include_directories( ${PROJECT_NAME} PRIVATE
+		${GEOMETRIC_TOOLS_DIR}/GTE
+		${EIGEN_ROOT_DIR}
+		${Boost_INCLUDE_DIRS}
+	)
+	target_link_libraries( ${PROJECT_NAME} Open3D::Open3D )
+
+	# QCUSTOMPLOT
+	target_link_libraries(${PROJECT_NAME}
+		QCustomPlot
+		Qt6::PrintSupport
+		)
+
+	# Copy OpenGL shaders
 	copy_files( "${CMAKE_CURRENT_SOURCE_DIR}/shaders/DrawGrains.vs" "${CLOUDCOMPARE_DEST_FOLDER}/shaders/G3Point" 1) #mind the quotes!
 	copy_files( "${CMAKE_CURRENT_SOURCE_DIR}/shaders/DrawGrains.fs" "${CLOUDCOMPARE_DEST_FOLDER}/shaders/G3Point" 1) #mind the quotes!
 
