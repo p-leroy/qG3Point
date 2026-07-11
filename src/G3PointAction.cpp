@@ -164,53 +164,53 @@ bool G3PointAction::sfConvertToRandomRGB(const ccHObject::Container &selectedEnt
 	//apply random colors
 	for (ccHObject* ent : selectedEntities)
 	{
-		ccGenericPointCloud* cloud = nullptr;
-
 		bool lockedVertices = false;
-		cloud = ccHObjectCaster::ToPointCloud(ent, &lockedVertices);
-		if (lockedVertices)
+		ccPointCloud* pc = ccHObjectCaster::ToPointCloud(ent, &lockedVertices);
+
+		if (nullptr == pc)
 		{
-			ccLog::Warning("[G3Point::sfConvertToRandomRGB] DisplayLockedVerticesWarning");
 			continue;
 		}
-		if (cloud != nullptr) //TODO
+		if (lockedVertices)
 		{
-			ccPointCloud* pc = static_cast<ccPointCloud*>(cloud);
-			ccScalarField* sf = pc->getCurrentDisplayedScalarField();
-			//if there is no displayed SF --> nothing to do!
-			if (sf && sf->currentSize() >= pc->size())
-			{
-				if (!pc->resizeTheRGBTable(false))
-				{
-					ccLog::Error(QObject::tr("Not enough memory!"));
-					break;
-				}
-				else
-				{
-					ScalarType minSF = sf->getMin();
-					ScalarType maxSF = sf->getMax();
-
-					ScalarType step = (maxSF - minSF) / (s_randomColorsNumber - 1);
-					if (step == 0)
-						step = static_cast<ScalarType>(1.0);
-
-					for (unsigned i = 0; i < pc->size(); ++i)
-					{
-						ScalarType val = sf->getValue(i);
-						unsigned colIndex = static_cast<unsigned>((val - minSF) / step);
-						if (colIndex == s_randomColorsNumber)
-							--colIndex;
-
-						pc->setPointColor(i, randomColors->getValue(colIndex));
-					}
-
-					pc->showColors(true);
-					pc->showSF(false); //just in case
-				}
-			}
-
-			m_cloud->prepareDisplayForRefresh_recursive();
+			ccLog::Warning("[G3Point::sfConvertToRandomRGB] Point cloud or vertices are locked");
+			continue;
 		}
+
+		ccScalarField* sf = pc->getCurrentDisplayedScalarField();
+		// if there is no displayed SF --> nothing to do!
+		if (sf && sf->currentSize() >= pc->size())
+		{
+			if (!pc->resizeTheRGBTable(false))
+			{
+				ccLog::Error(QObject::tr("Not enough memory!"));
+				break;
+			}
+			else
+			{
+				ScalarType minSF = sf->getMin();
+				ScalarType maxSF = sf->getMax();
+
+				ScalarType step = (maxSF - minSF) / (s_randomColorsNumber - 1);
+				if (step == 0)
+					step = static_cast<ScalarType>(1.0);
+
+				for (unsigned i = 0; i < pc->size(); ++i)
+				{
+					ScalarType val      = sf->getValue(i);
+					unsigned   colIndex = static_cast<unsigned>((val - minSF) / step);
+					if (colIndex == s_randomColorsNumber)
+						--colIndex;
+
+					pc->setPointColor(i, randomColors->getValue(colIndex));
+				}
+
+				pc->showColors(true);
+				pc->showSF(false); // just in case
+			}
+		}
+
+		m_cloud->prepareDisplayForRefresh_recursive();
 	}
 
 	return true;
