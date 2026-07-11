@@ -62,12 +62,17 @@ target_sources(G3PointPlugin
 	# QCUSTOMPLOT
 	target_link_libraries(${PROJECT_NAME}
 		QCustomPlot
-		Qt5::PrintSupport
+		Qt6::PrintSupport
 		)
 
 	# Copy OpenGL shaders
 	copy_files( "${CMAKE_CURRENT_SOURCE_DIR}/shaders/DrawGrains.vs" "${CLOUDCOMPARE_DEST_FOLDER}/shaders/G3Point" 1) #mind the quotes!
 	copy_files( "${CMAKE_CURRENT_SOURCE_DIR}/shaders/DrawGrains.fs" "${CLOUDCOMPARE_DEST_FOLDER}/shaders/G3Point" 1) #mind the quotes!
+
+	target_include_directories( ${PROJECT_NAME} PRIVATE
+		../../../../libs/qCC_db/extern/CCCoreLib/extern/nanoflann/include
+		${EIGEN_ROOT_DIR}
+	)
 
 	#================
 	# git commit hash

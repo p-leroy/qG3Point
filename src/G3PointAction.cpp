@@ -1,4 +1,6 @@
 #include "G3PointAction.h"
+#include "DgmOctreeReferenceCloud.h"
+#include "Neighbourhood.h"
 
 // CCPluginAPI
 #include <ccMainAppInterface.h>
@@ -33,7 +35,9 @@
 #include <random>
 
 // Open3D
+#ifdef USE_OPEN3D_WITH_G3POINT
 #include <open3d/geometry/PointCloud.h>
+#endif
 
 // Eigen
 #include <Eigen/Geometry>
@@ -160,53 +164,53 @@ bool G3PointAction::sfConvertToRandomRGB(const ccHObject::Container &selectedEnt
 	//apply random colors
 	for (ccHObject* ent : selectedEntities)
 	{
-		ccGenericPointCloud* cloud = nullptr;
-
 		bool lockedVertices = false;
-		cloud = ccHObjectCaster::ToPointCloud(ent, &lockedVertices);
-		if (lockedVertices)
+		ccPointCloud* pc = ccHObjectCaster::ToPointCloud(ent, &lockedVertices);
+
+		if (nullptr == pc)
 		{
-			ccLog::Warning("[G3Point::sfConvertToRandomRGB] DisplayLockedVerticesWarning");
 			continue;
 		}
-		if (cloud != nullptr) //TODO
+		if (lockedVertices)
 		{
-			ccPointCloud* pc = static_cast<ccPointCloud*>(cloud);
-			ccScalarField* sf = pc->getCurrentDisplayedScalarField();
-			//if there is no displayed SF --> nothing to do!
-			if (sf && sf->currentSize() >= pc->size())
-			{
-				if (!pc->resizeTheRGBTable(false))
-				{
-					ccLog::Error(QObject::tr("Not enough memory!"));
-					break;
-				}
-				else
-				{
-					ScalarType minSF = sf->getMin();
-					ScalarType maxSF = sf->getMax();
-
-					ScalarType step = (maxSF - minSF) / (s_randomColorsNumber - 1);
-					if (step == 0)
-						step = static_cast<ScalarType>(1.0);
-
-					for (unsigned i = 0; i < pc->size(); ++i)
-					{
-						ScalarType val = sf->getValue(i);
-						unsigned colIndex = static_cast<unsigned>((val - minSF) / step);
-						if (colIndex == s_randomColorsNumber)
-							--colIndex;
-
-						pc->setPointColor(i, randomColors->getValue(colIndex));
-					}
-
-					pc->showColors(true);
-					pc->showSF(false); //just in case
-				}
-			}
-
-			m_cloud->prepareDisplayForRefresh_recursive();
+			ccLog::Warning("[G3Point::sfConvertToRandomRGB] Point cloud or vertices are locked");
+			continue;
 		}
+
+		ccScalarField* sf = pc->getCurrentDisplayedScalarField();
+		// if there is no displayed SF --> nothing to do!
+		if (sf && sf->currentSize() >= pc->size())
+		{
+			if (!pc->resizeTheRGBTable(false))
+			{
+				ccLog::Error(QObject::tr("Not enough memory!"));
+				break;
+			}
+			else
+			{
+				ScalarType minSF = sf->getMin();
+				ScalarType maxSF = sf->getMax();
+
+				ScalarType step = (maxSF - minSF) / (s_randomColorsNumber - 1);
+				if (step == 0)
+					step = static_cast<ScalarType>(1.0);
+
+				for (unsigned i = 0; i < pc->size(); ++i)
+				{
+					ScalarType val      = sf->getValue(i);
+					unsigned   colIndex = static_cast<unsigned>((val - minSF) / step);
+					if (colIndex == s_randomColorsNumber)
+						--colIndex;
+
+					pc->setPointColor(i, randomColors->getValue(colIndex));
+				}
+
+				pc->showColors(true);
+				pc->showSF(false); // just in case
+			}
+		}
+
+		m_cloud->prepareDisplayForRefresh_recursive();
 	}
 
 	return true;
@@ -369,7 +373,7 @@ Eigen::ArrayXXd G3PointAction::computeMeanAngleBetweenNormalsAtBorders()
 	Eigen::ArrayXXi duplicated_labels(m_cloud->size(), m_kNN);
 	for (int n = 0; n < m_kNN; n++)
 	{
-		duplicated_labels(Eigen::all, n) = m_labels;
+		duplicated_labels(Eigen::placeholders::all, n) = m_labels;
 	}
 	Eigen::ArrayXXi labels_of_neighbors(m_cloud->size(), m_kNN);
 	for (int index = 0; index < static_cast<int>(m_cloud->size()); index++)
@@ -403,12 +407,12 @@ Eigen::ArrayXXd G3PointAction::computeMeanAngleBetweenNormalsAtBorders()
 
 	for (auto i : indborder)
 	{
-		auto neighbors = m_neighborsIndexes(i, Eigen::all);  // indexes of the neighbors of i
-		Eigen::Vector3d N1(m_normals(i, Eigen::all)); // normal at i
+		auto neighbors = m_neighborsIndexes(i, Eigen::placeholders::all);  // indexes of the neighbors of i
+		Eigen::Vector3d N1(m_normals(i, Eigen::placeholders::all)); // normal at i
 		for (auto j : neighbors)
 		{
 			// Take the normals vector for i and j
-			Eigen::Vector3d N2(m_normals(j, Eigen::all)); // normal at j
+			Eigen::Vector3d N2(m_normals(j, Eigen::placeholders::all)); // normal at j
 			double angle = angleRot2VecMat(N1, N2);
 			if ((m_labels(i) != -1) && (m_labels(j) != -1))  // points which belong to the discarded grains have the -1 label
 			{
@@ -1263,21 +1267,21 @@ bool G3PointAction::wolman()
 
 	Eigen::ArrayXXf dq(n_iter, 3);
 	Eigen::ArrayXf d_sample = d[0];
-	dq(0, Eigen::all) << quant(d[0], 0.1), quant(d[0], 0.5), quant(d[0], 0.9);
+	dq(0, Eigen::placeholders::all) << quant(d[0], 0.1), quant(d[0], 0.5), quant(d[0], 0.9);
 	for (int i = 1; i < n_iter; i++)
 	{
 		Eigen::ArrayXf tmp(d_sample.size() + d[i].size());
 		tmp << d_sample, d[i];
 		d_sample = tmp;
-		dq(i, Eigen::all) << quant(d[i], 0.1), quant(d[i], 0.5), quant(d[i], 0.9);
+		dq(i, Eigen::placeholders::all) << quant(d[i], 0.1), quant(d[i], 0.5), quant(d[i], 0.9);
 	}
 
 	// std::cout << "d_sample " << d_sample << std::endl;
 
 	// compute standard deviation
-	Eigen::Array3d edq {std_dev(dq(Eigen::all, 0)),
-					   std_dev(dq(Eigen::all, 1)),
-					   std_dev(dq(Eigen::all, 2))};
+	Eigen::Array3d edq {std_dev(dq(Eigen::placeholders::all, 0)),
+					   std_dev(dq(Eigen::placeholders::all, 1)),
+					   std_dev(dq(Eigen::placeholders::all, 2))};
 	Eigen::Array3d dq_final {quant(d_sample, 0.1),
 							quant(d_sample, 0.5),
 							quant(d_sample, 0.9)};
@@ -1430,11 +1434,11 @@ bool G3PointAction::cleanLabels()
 			Eigen::RowVector3d centroid = points.colwise().mean();
 			points.rowwise() -= centroid;
 			// SVD decomposition A = U S V∗
-			s(k, Eigen::all) = points.jacobiSvd().singularValues();
+			s(k, Eigen::placeholders::all) = points.jacobiSvd().singularValues();
 		}
 		// filtering condition: (l2 / l0 > min_flatness) or (l1 / l0 > 2 * min_flatness)
-		Xb condition = (s(Eigen::all, 2) / s(Eigen::all, 0) > m_minFlatness)
-					   || (s(Eigen::all, 1) / s(Eigen::all, 0) > 2. * m_minFlatness);
+		Xb condition = (s(Eigen::placeholders::all, 2) / s(Eigen::placeholders::all, 0) > m_minFlatness)
+					   || (s(Eigen::placeholders::all, 1) / s(Eigen::placeholders::all, 0) > 2. * m_minFlatness);
 		size_t numberOfGrainsToKeep = condition.count();
 		if (numberOfGrainsToKeep == m_stacks.size())
 		{
@@ -1750,7 +1754,7 @@ void G3PointAction::orientNormals(const Eigen::Vector3d& sensorCenter)
 	{
 		const CCVector3 *point = m_cloud->getPoint(i);
 		Eigen::Vector3d P1 = sensorCenter - Eigen::Vector3d(point->x, point->y, point->z);
-		Eigen::Vector3d P2 = m_normals(i, Eigen::all);
+		Eigen::Vector3d P2 = m_normals(i, Eigen::placeholders::all);
 		double angle = atan2(P1.cross(P2).norm(), P1.dot(P2));
 		if ((angle < - M_PI / 2) || (angle > M_PI / 2))
 		{
@@ -1763,6 +1767,7 @@ void G3PointAction::orientNormals(const Eigen::Vector3d& sensorCenter)
 
 bool G3PointAction::computeNormalsWithOpen3D()
 {
+#ifdef USE_OPEN3D_WITH_G3POINT
 	// create an open3D point cloud from the original point cloud
 	std::vector<Eigen::Vector3d> points(m_cloud->size());
 	for (int index =0; index < points.size(); index++) // copy all points
@@ -1815,6 +1820,170 @@ bool G3PointAction::computeNormalsWithOpen3D()
 	}
 
 	return true;
+#else
+	return false;
+#endif
+}
+
+bool G3PointAction::findNearestNeighborsNanoFlann(const unsigned globalIndex,
+	                                              CCCoreLib::ReferenceCloud* points,
+	                                              const KDTree* kdTree)
+{
+	// Prepare query
+	const CCVector3* Q = m_cloud->getPoint(globalIndex);
+	float query[3] = { Q->x, Q->y, Q->z };
+
+	std::vector<size_t> retIndexes(m_kNN);
+	std::vector<float> outDistsSqr(m_kNN);
+
+		   // Perform search
+	nanoflann::KNNResultSet<float> resultSet(m_kNN);
+	resultSet.init(&retIndexes[0], &outDistsSqr[0]);
+	if(kdTree->findNeighbors(resultSet, &query[0]))
+	{
+		points->resize(m_kNN);
+		for (int i = 0; i < m_kNN; ++i)
+		{
+			points->setPointIndex(i, retIndexes[i]);
+		}
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
+bool G3PointAction::computeNormWithFlann(unsigned index,
+										 NormsTableType* theNorms,
+										 const G3PointAction::KDTree* kdTree)
+{
+	CCVector3 N;
+
+	QScopedPointer<CCCoreLib::ReferenceCloud> points(new CCCoreLib::ReferenceCloud(m_cloud));
+	if(findNearestNeighborsNanoFlann(index, points.data(), kdTree))
+	{
+		CCCoreLib::Neighbourhood neighbourhood(points.data());
+		N = *neighbourhood.getLSPlaneNormal();
+	}
+	else
+	{
+		return false;
+	}
+
+	theNorms->setValue(index, N);
+
+	return true;
+}
+
+bool G3PointAction::computeNormalsWithCloudCompare()
+{
+	unsigned pointCount = m_cloud->size();
+
+	if (!m_cloud || m_cloud->size() == 0)
+	{
+		ccLog::Error("Invalid cloud.");
+		return false;
+	}
+
+	CloudAdaptor adaptor(m_cloud);
+
+	// Build KD-tree (parameter: number of leaf nodes to inspect per query)
+
+	size_t leaf_max_size = 10;
+	nanoflann::KDTreeSingleIndexAdaptorFlags flags = nanoflann::KDTreeSingleIndexAdaptorFlags::None;
+	unsigned int n_thread_build = 0; // 0 => nanoflann automatically determines the number of threads to use
+
+	nanoflann::KDTreeSingleIndexAdaptorParams params(leaf_max_size, flags, n_thread_build);
+	QSharedPointer<KDTree> m_kdTree(new KDTree(3, adaptor, params));
+	m_kdTree->buildIndex();
+
+	// we instantiate 3D normal vectors
+	QSharedPointer<NormsTableType> theNorms(new NormsTableType);
+	QScopedPointer<NormsIndexesTableType> normsIndexes(new NormsIndexesTableType);
+	static const CCVector3 blankN(0, 0, 0);
+	if (!theNorms->resizeSafe(pointCount, true, &blankN))
+	{
+		normsIndexes->resize(0);
+		return false;
+	}
+
+	ccLog::Print("[computeNormalsWithCloudCompare]");
+#ifdef QT_DEBUG
+	//manually call the static per-point method!
+	for (unsigned index = 0; index < pointCount; ++index)
+	{
+		computeNormWithFlann(index, theNorms.data(), m_kdTree.data());
+	}
+#else
+	std::vector<unsigned> pointsIndexes;
+	pointsIndexes.resize(pointCount);
+	for (unsigned i = 0; i < pointCount; ++i)
+	{
+		pointsIndexes[i] = i;
+	}
+	int threadCount = std::max(1, ccQtHelpers::GetMaxThreadCount() - 2);
+	ccLog::Print("[computeNormalsWithCloudCompare] parallel strategy, thread count " + QString::number(threadCount));
+	QThreadPool::globalInstance()->setMaxThreadCount(threadCount);
+	QtConcurrent::blockingMap(pointsIndexes, [=](int index){computeNormWithFlann(index, theNorms.data(), m_kdTree.data());});
+#endif
+
+	if (!m_cloud->hasNormals())
+	{
+		if (!m_cloud->resizeTheNormsTable())
+		{
+			ccLog::Error(QString("Not enough memory to compute normals on cloud '%1'").arg(m_cloud->getName()));
+			return false;
+		}
+	}
+
+	// we hide normals during process
+	m_cloud->showNormals(false);
+
+	// compress the normals
+	for (unsigned i = 0; i < theNorms->currentSize(); i++)
+	{
+		const CCVector3&   N     = theNorms->at(i);
+		const CompressedNormType nCode = ccNormalVectors::GetNormIndex(N);
+		m_cloud->setPointNormalIndex(i, nCode);
+	}
+
+	// preferred orientation
+	ccLog::Print("[computeNormalsWithCloudCompare] orient normals, PLUS_Z ");
+	ccNormalVectors::UpdateNormalOrientations(m_cloud, *m_cloud->normals(), ccNormalVectors::PLUS_Z);
+
+	return true;
+}
+
+bool G3PointAction::computeNormals()
+{
+	// if there are normals, already, propose to keep them
+	if (m_cloud->hasNormals())
+	{
+		QMessageBox msgBox;
+		msgBox.setInformativeText("Recompute normals?");
+		msgBox.setText("There are existing normals, keep them or recompute.");
+		QPushButton *keepButton = msgBox.addButton(tr("Keep"), QMessageBox::ActionRole);
+		msgBox.addButton(tr("Recompute"), QMessageBox::AcceptRole);
+		QPushButton *cancelButton = msgBox.addButton(tr("Cancel"), QMessageBox::AcceptRole);
+
+		msgBox.exec();
+
+		if (msgBox.clickedButton() == keepButton)
+		{
+			return true;
+		}
+		else if (msgBox.clickedButton() == cancelButton)
+		{
+			return false;
+		}
+	}
+
+#ifdef USE_OPEN3D_WITH_G3POINT
+	return computeNormalsWithOpen3D();
+#else
+	return computeNormalsWithCloudCompare();
+#endif
 }
 
 bool G3PointAction::queryNeighbors(ccPointCloud* cloud, ccMainAppInterface* appInterface, bool useParallelStrategy)
@@ -1893,7 +2062,7 @@ void G3PointAction::segment()
 
 	computeNodeSurfaces();
 
-	computeNormalsWithOpen3D();
+	computeNormals();
 
 	// compute the centroid
 	unsigned pointCount = m_cloud->size();
@@ -1964,7 +2133,7 @@ void G3PointAction::getBorders()
 	Eigen::ArrayXXi duplicatedLabelsInColumns(m_cloud->size(), m_kNN);
 	for (int n = 0; n < m_kNN; n++)
 	{
-		duplicatedLabelsInColumns(Eigen::all, n) = m_labels;
+		duplicatedLabelsInColumns(Eigen::placeholders::all, n) = m_labels;
 	}
 	Eigen::ArrayXXi labelsOfNeighbors(m_cloud->size(), m_kNN);
 	for (int index = 0; index < static_cast<float>(m_cloud->size()); index++)
