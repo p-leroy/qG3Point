@@ -252,12 +252,12 @@ int G3PointAction::segmentLabels(bool useParallelStrategy)
 	}
 
 	// if the minimum slope is positive, the receiver is a local maximum
-	int            nb_maxima           = (min_slopes > 0).count();
+	int            nb_maxima           = (min_slopes >= 0).count();
 	Eigen::ArrayXi localMaximumIndexes = Eigen::ArrayXi::Zero(nb_maxima);
 	int l = 0;
 	for (unsigned int k = 0; k < m_cloud->size(); k++)
 	{
-		if (min_slopes(k) > 0)
+		if (min_slopes(k) >= 0)
 		{
 			localMaximumIndexes(l) = k;
 			receivers(k) = k;
@@ -817,9 +817,10 @@ bool G3PointAction::keep(Xb& condition)
 	return true;
 }
 
-template<typename T>
+template <typename T>
 bool G3PointAction::EigenArrayToFile(QString name, T array)
 {
+#ifdef G3POINT_EXPORT_ARRAYS_FOR_DEBUG
 	QDir dir = QDir::home();
 	if (!dir.mkpath("g3point"))
 	{
@@ -830,6 +831,7 @@ bool G3PointAction::EigenArrayToFile(QString name, T array)
 	const Eigen::IOFormat CSVFormat(Eigen::StreamPrecision, Eigen::DontAlignCols, ", ", "\n");
 	std::ofstream         file(filename.toLatin1());
 	file << array.format(CSVFormat);
+#endif
 	return true;
 }
 

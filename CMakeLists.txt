@@ -16,7 +16,7 @@ if ( PLUGIN_G3POINT )
 		ui/WolmanCustomPlot.ui
 	)
 
-	set(QG3POINT_PLUGIN_VERSION "0.6")
+	set(QG3POINT_PLUGIN_VERSION "0.7")
 
 	add_subdirectory( include )
 	add_subdirectory( src )
@@ -40,6 +40,12 @@ if ( PLUGIN_G3POINT )
 		message( SEND_ERROR "No Eigen root directory specified (EIGEN_ROOT_DIR)" )
 	else()
 		message( STATUS "EIGEN_ROOT_DIR " ${EIGEN_ROOT_DIR} )
+	endif()
+
+	# Conditionally add G3POINT_EXPORT_ARRAYS_FOR_DEBUG
+	option(G3POINT_EXPORT_ARRAYS_FOR_DEBUG "Export Eigen arrays for comparison with Python calculations" OFF)
+	if(G3POINT_EXPORT_ARRAYS_FOR_DEBUG)
+	    target_compile_definitions(${PROJECT_NAME} PRIVATE G3POINT_EXPORT_ARRAYS_FOR_DEBUG)
 	endif()
 
 	# OPEN3D
