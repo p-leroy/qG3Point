@@ -138,7 +138,7 @@ void AnglesCustomPlot::mousePressEvent(QMouseEvent *event)
 		QAction* action = new QAction("Close tab");
 		menu->addAction(action);
 		connect(action, &QAction::triggered, this, &AnglesCustomPlot::emitCloseTab);
-		menu->popup(event->globalPos());
+		menu->popup(event->globalPosition().toPoint());
 	}
 	QCustomPlot::mousePressEvent(event);
 }
