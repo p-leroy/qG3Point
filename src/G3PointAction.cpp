@@ -1702,7 +1702,7 @@ bool G3PointAction::computeNormalsAndOrientThemWithCloudCompare()
 	orientation = ccNormalVectors::Orientation::PLUS_Z;
 	model = CCCoreLib::LOCAL_MODEL_TYPES::LS;
 
-	QScopedPointer<ccProgressDialog> progressDialog(nullptr);
+	std::unique_ptr<ccProgressDialog> progressDialog{};
 
 	if (!m_cloud->getOctree())
 	{
@@ -1860,7 +1860,7 @@ bool G3PointAction::computeNormWithFlann(unsigned index,
 {
 	CCVector3 N;
 
-	QScopedPointer<CCCoreLib::ReferenceCloud> points(new CCCoreLib::ReferenceCloud(m_cloud));
+	std::unique_ptr<CCCoreLib::ReferenceCloud> points = std::make_unique<CCCoreLib::ReferenceCloud>(m_cloud);
 	if(findNearestNeighborsNanoFlann(index, points.data(), kdTree))
 	{
 		CCCoreLib::Neighbourhood neighbourhood(points.data());
@@ -1900,7 +1900,7 @@ bool G3PointAction::computeNormalsWithCloudCompare()
 
 	// we instantiate 3D normal vectors
 	QSharedPointer<NormsTableType> theNorms(new NormsTableType);
-	QScopedPointer<NormsIndexesTableType> normsIndexes(new NormsIndexesTableType);
+	std::unique_ptr<NormsIndexesTableType> normsIndexes();
 	static const CCVector3 blankN(0, 0, 0);
 	if (!theNorms->resizeSafe(pointCount, true, &blankN))
 	{
