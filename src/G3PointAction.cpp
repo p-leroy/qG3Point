@@ -32,7 +32,9 @@
 #include <algorithm>
 #include <iostream>
 #include <fstream>
-#include <random>
+#include <memory>
+#include <math.h>
+#include <set>
 
 // Open3D
 #ifdef USE_OPEN3D_WITH_G3POINT
@@ -41,9 +43,6 @@
 
 // Eigen
 #include <Eigen/Geometry>
-
-#include <math.h>
-#include <set>
 
 #include <G3PointDialog.h>
 #include <G3PointDisclaimer.h>
@@ -1706,7 +1705,7 @@ bool G3PointAction::computeNormalsAndOrientThemWithCloudCompare()
 
 	if (!m_cloud->getOctree())
 	{
-		if (!m_cloud->computeOctree(progressDialog.data()))
+		if (!m_cloud->computeOctree(progressDialog.get()))
 		{
 			ccLog::Error("Failed to compute octree for cloud " + m_cloud->getName());
 			return false;
@@ -1732,7 +1731,7 @@ bool G3PointAction::computeNormalsAndOrientThemWithCloudCompare()
 		}
 
 		ccLog::Print("computeNormalsWithOctree started...");
-		bool success = m_cloud->computeNormalsWithOctree(model, orientation, thisCloudRadius, progressDialog.data());
+		bool success = m_cloud->computeNormalsWithOctree(model, orientation, thisCloudRadius, progressDialog.get());
 		if(success)
 		{
 			ccLog::Print("computeNormalsWithOctree success");
@@ -1861,9 +1860,9 @@ bool G3PointAction::computeNormWithFlann(unsigned index,
 	CCVector3 N;
 
 	std::unique_ptr<CCCoreLib::ReferenceCloud> points = std::make_unique<CCCoreLib::ReferenceCloud>(m_cloud);
-	if(findNearestNeighborsNanoFlann(index, points.data(), kdTree))
+	if(findNearestNeighborsNanoFlann(index, points.get(), kdTree))
 	{
-		CCCoreLib::Neighbourhood neighbourhood(points.data());
+		CCCoreLib::Neighbourhood neighbourhood(points.get());
 		N = *neighbourhood.getLSPlaneNormal();
 	}
 	else
@@ -1900,7 +1899,7 @@ bool G3PointAction::computeNormalsWithCloudCompare()
 
 	// we instantiate 3D normal vectors
 	QSharedPointer<NormsTableType> theNorms(new NormsTableType);
-	std::unique_ptr<NormsIndexesTableType> normsIndexes();
+	std::unique_ptr<NormsIndexesTableType> normsIndexes;
 	static const CCVector3 blankN(0, 0, 0);
 	if (!theNorms->resizeSafe(pointCount, true, &blankN))
 	{
