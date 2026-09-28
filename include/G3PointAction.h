@@ -48,7 +48,7 @@ public:
 	bool wolman();
 	bool angles();
 	bool processNewStacks(std::vector<std::vector<int>>& newStacks, int pointCount);
-	bool buildStacksFromG3PointLabelSF(CCCoreLib::ScalarField *g3PointLabel);
+	bool buildStacksFromG3PointLabelSF(const CCCoreLib::ScalarField& g3PointLabel);
 	bool merge(XXb& condition);
 	bool keep(Xb& condition);
 	bool cleanLabels();

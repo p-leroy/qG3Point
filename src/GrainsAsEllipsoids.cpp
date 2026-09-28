@@ -150,7 +150,7 @@ bool GrainsAsEllipsoids::exportResultsAsCloud()
 	}
 
 	int sfIdx;
-	CCCoreLib::ScalarField* sf;
+	CCCoreLib::ScalarField::Shared sf;
 
 	// EXPORT g3point_index
 	sfIdx = cloud->addScalarField("g3point_index");
@@ -181,9 +181,9 @@ bool GrainsAsEllipsoids::exportResultsAsCloud()
 		ccLog::Error("[GrainsAsEllipsoids::exportResultsAsCloud] impossible to allocate scalar fields to export the radii");
 		return false;
 	}
-	CCCoreLib::ScalarField* sfRadiusX = cloud->getScalarField(sfIdxRadiusX);
-	CCCoreLib::ScalarField* sfRadiusY = cloud->getScalarField(sfIdxRadiusY);
-	CCCoreLib::ScalarField* sfRadiusZ = cloud->getScalarField(sfIdxRadiusZ);
+	auto sfRadiusX = cloud->getScalarField(sfIdxRadiusX);
+	auto sfRadiusY = cloud->getScalarField(sfIdxRadiusY);
+	auto sfRadiusZ = cloud->getScalarField(sfIdxRadiusZ);
 	for (unsigned int index = 0; index < cloud->size(); index++)
 	{
 		// if (m_fitNotOK.count(index))
@@ -216,15 +216,15 @@ bool GrainsAsEllipsoids::exportResultsAsCloud()
 		ccLog::Error("[GrainsAsEllipsoids::exportResultsAsCloud] impossible to allocate scalar fields to export the rotation");
 		return false;
 	}
-	CCCoreLib::ScalarField* sfR00 = cloud->getScalarField(sfIdxR00);
-	CCCoreLib::ScalarField* sfR01 = cloud->getScalarField(sfIdxR01);
-	CCCoreLib::ScalarField* sfR02 = cloud->getScalarField(sfIdxR02);
-	CCCoreLib::ScalarField* sfR10 = cloud->getScalarField(sfIdxR10);
-	CCCoreLib::ScalarField* sfR11 = cloud->getScalarField(sfIdxR11);
-	CCCoreLib::ScalarField* sfR12 = cloud->getScalarField(sfIdxR12);
-	CCCoreLib::ScalarField* sfR20 = cloud->getScalarField(sfIdxR20);
-	CCCoreLib::ScalarField* sfR21 = cloud->getScalarField(sfIdxR21);
-	CCCoreLib::ScalarField* sfR22 = cloud->getScalarField(sfIdxR22);
+	auto sfR00 = cloud->getScalarField(sfIdxR00);
+	auto sfR01 = cloud->getScalarField(sfIdxR01);
+	auto sfR02 = cloud->getScalarField(sfIdxR02);
+	auto sfR10 = cloud->getScalarField(sfIdxR10);
+	auto sfR11 = cloud->getScalarField(sfIdxR11);
+	auto sfR12 = cloud->getScalarField(sfIdxR12);
+	auto sfR20 = cloud->getScalarField(sfIdxR20);
+	auto sfR21 = cloud->getScalarField(sfIdxR21);
+	auto sfR22 = cloud->getScalarField(sfIdxR22);
 	for (unsigned int index = 0; index < cloud->size(); index++)
 	{
 		// if (m_fitNotOK.count(index))

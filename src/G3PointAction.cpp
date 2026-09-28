@@ -176,7 +176,7 @@ bool G3PointAction::sfConvertToRandomRGB(const ccHObject::Container &selectedEnt
 			continue;
 		}
 
-		ccScalarField* sf = pc->getCurrentDisplayedScalarField();
+		auto sf = pc->getCurrentDisplayedScalarField();
 		// if there is no displayed SF --> nothing to do!
 		if (sf && sf->currentSize() >= pc->size())
 		{
@@ -303,7 +303,7 @@ int G3PointAction::segmentLabels(bool useParallelStrategy)
 		}
 	}
 
-	CCCoreLib::ScalarField* g3point_label = m_cloud->getScalarField(sfIdx);
+	auto g3point_label = m_cloud->getScalarField(sfIdx);
 	RGBAColorsTableType randomColors = getRandomColors(localMaximumIndexes.size());
 
 	if (!m_cloud->resizeTheRGBTable(false))
@@ -530,7 +530,7 @@ bool G3PointAction::updateLabelsAndColors()
 			return false;
 		}
 	}
-	CCCoreLib::ScalarField* g3point_label = m_cloud->getScalarField(sfIdx);
+	auto g3point_label = m_cloud->getScalarField(sfIdx);
 
 	RGBAColorsTableType randomColors = getRandomColors(m_stacks.size());
 
@@ -656,15 +656,15 @@ bool G3PointAction::processNewStacks(std::vector<std::vector<int>>& newStacks, i
 	return true;
 }
 
-bool G3PointAction::buildStacksFromG3PointLabelSF(CCCoreLib::ScalarField* g3PointLabel)
+bool G3PointAction::buildStacksFromG3PointLabelSF(const CCCoreLib::ScalarField& g3PointLabel)
 {
 	m_stacks.clear();
 
 	// get all the different labels
 	std::set<float> labels;
-	for (int idx = 0; idx < g3PointLabel->size(); idx++)
+	for (int idx = 0; idx < g3PointLabel.size(); idx++)
 	{
-		labels.insert(g3PointLabel->getValue(idx));
+		labels.insert(g3PointLabel.getValue(idx));
 	}
 
 	// rebuild the stacks
@@ -673,7 +673,7 @@ bool G3PointAction::buildStacksFromG3PointLabelSF(CCCoreLib::ScalarField* g3Poin
 		std::vector<int> stack;
 		for (int idx =0; idx < static_cast<int>(m_cloud->size()); idx++)
 		{
-			if (g3PointLabel->getLocalValue(idx) == label)
+			if (g3PointLabel.getLocalValue(idx) == label)
 			{
 				stack.push_back(idx);
 			}
@@ -1015,8 +1015,8 @@ void G3PointAction::fit()
 			ccLog::Warning("[G3PointAction::fit] no existing g3point_label scalar field");
 			return;
 		}
-		CCCoreLib::ScalarField* g3PointLabel = m_cloud->getScalarField(idx);
-		if (!buildStacksFromG3PointLabelSF(g3PointLabel))
+		auto g3PointLabel = m_cloud->getScalarField(idx);
+		if (!g3PointLabel || !buildStacksFromG3PointLabelSF(*g3PointLabel))
 		{
 			ccLog::Warning("[G3PointAction::fit] not possible to build stacks from existing g3point_scalar field");
 			return;
@@ -1150,7 +1150,7 @@ bool G3PointAction::wolman()
 		ccLog::Error("[G3PointAction::wolman] no g3point_label");
 		return false;
 	}
-	CCCoreLib::ScalarField* g3point_label = m_cloud->getScalarField(sfIdx);
+	auto g3point_label = m_cloud->getScalarField(sfIdx);
 	for (int i = 0; i < n_points; i++)
 	{
 		const CCVector3* P = m_grainsAsEllipsoids->m_cloud->getPoint(i);
@@ -1593,7 +1593,7 @@ int G3PointAction::segmentLabelsBraunWillett()
 			ccLog::Error("[G3Point::segment_labels] impossible to create scalar field g3point_initial_segmentation");
 		}
 	}
-	CCCoreLib::ScalarField* g3point_label = m_cloud->getScalarField(sfIdx);
+	auto g3point_label = m_cloud->getScalarField(sfIdx);
 
 	RGBAColorsTableType randomColors = getRandomColors(m_initial_localMaximumIndexes.size());
 
@@ -2259,8 +2259,8 @@ bool G3PointAction::setCloud(ccPointCloud *cloud)
 			}
 		}
 
-		CCCoreLib::ScalarField* g3PointLabelSF = m_cloud->getScalarField(sfIdx);
-		CCCoreLib::ScalarField* g3PointLabelBackupSF = m_cloud->getScalarField(sfIdxBackup);
+		auto g3PointLabelSF = m_cloud->getScalarField(sfIdx);
+		auto g3PointLabelBackupSF = m_cloud->getScalarField(sfIdxBackup);
 
 		// get the set of labels
 		std::set<ScalarType> labelsSet;
