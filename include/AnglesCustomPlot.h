@@ -35,7 +35,7 @@ signals:
 	void closeTab();
 
 private:
-	Ui::AnglesCustomPlot *ui;
+	std::unique_ptr<Ui::AnglesCustomPlot> ui;
 
 	QVector<double> m_axis;
 

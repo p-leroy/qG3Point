@@ -5,7 +5,7 @@
 
 G3PointDialog::G3PointDialog(QString cloudName, QWidget *parent)
 	: QDialog(parent)
-	, ui(new Ui::G3PointDialog)
+	, ui(std::make_unique<Ui::G3PointDialog>())
 {
 	ui->setupUi(this);
 
@@ -35,10 +35,7 @@ G3PointDialog::G3PointDialog(QString cloudName, QWidget *parent)
 	connect(this->ui->radioButtonOnlyOne, &QRadioButton::toggled, this, &G3PointDialog::enableDrawPointsForOnlyOneGrain);
 }
 
-G3PointDialog::~G3PointDialog()
-{
-	delete ui;
-}
+G3PointDialog::~G3PointDialog() = default;
 
 void G3PointDialog::readSettings()
 {

@@ -20,7 +20,7 @@
 
 G3PointPlots::G3PointPlots(QString title, QWidget *parent)
 	: QWidget(parent)
-	, ui(new Ui::G3PointPlots)
+	, ui(std::make_unique<Ui::G3PointPlots>())
 {
 	ui->setupUi(this);
 
@@ -32,10 +32,7 @@ G3PointPlots::G3PointPlots(QString title, QWidget *parent)
 	connect(this->ui->exportImage, &QToolButton::clicked, this, &G3PointPlots::onExportToImage);
 }
 
-G3PointPlots::~G3PointPlots()
-{
-	delete ui;
-}
+G3PointPlots::~G3PointPlots() = default;
 
 void G3PointPlots::closeEvent(QCloseEvent *event)
 {

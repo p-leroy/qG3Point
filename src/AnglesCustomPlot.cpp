@@ -5,7 +5,7 @@
 #include <ccLog.h>
 
 AnglesCustomPlot::AnglesCustomPlot(const QVector<double> &data, const QString &xLabel, int nbBins, QWidget *parent):
-	ui(new Ui::AnglesCustomPlot),
+	ui(std::make_unique<Ui::AnglesCustomPlot>()),
 	m_label(xLabel),
 	m_bars(nullptr),
 	m_nbBins(nbBins)
@@ -23,10 +23,7 @@ AnglesCustomPlot::AnglesCustomPlot(const QVector<double> &data, const QString &x
 	m_bars->rescaleAxes();
 }
 
-AnglesCustomPlot::~AnglesCustomPlot()
-{
-	delete ui;
-}
+AnglesCustomPlot::~AnglesCustomPlot() = default;
 
 //! Default number of classes for associated histogram
 static const unsigned MAX_HISTOGRAM_SIZE = 512;

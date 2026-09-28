@@ -75,7 +75,7 @@ signals:
 	void glPointSize(int size);
 
 private:
-	Ui::G3PointDialog *ui;
+	std::unique_ptr<Ui::G3PointDialog> ui;
 };
 
 #endif // QG3POINTDIALOG_H
