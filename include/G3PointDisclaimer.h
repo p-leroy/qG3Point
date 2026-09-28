@@ -23,7 +23,7 @@ private:
 	//whether disclaimer has already been displayed (and accepted) or not
 	static bool s_disclaimerAccepted;
 
-	Ui::G3PointDisclaimer *ui;
+	std::unique_ptr<Ui::G3PointDisclaimer> ui;
 };
 
 #endif // G3POINTDISCLAIMER_H

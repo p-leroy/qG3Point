@@ -72,6 +72,8 @@ class WolmanCustomPlot : public QCustomPlot
 public:
 	WolmanCustomPlot(const Eigen::ArrayXf& d_sample, const Eigen::Array3d& dq_final, const Eigen::Array3d& edq);
 
+	~WolmanCustomPlot() override;
+
 	QSharedPointer<QCPGraphDataContainer> dataContainer(){return m_graph->data();}
 
 	Eigen::Array3d m_dq_final;
@@ -92,7 +94,7 @@ signals:
 	void closeTab();
 
 private:
-	Ui::WolmanCustomPlot *ui;
+	std::unique_ptr<Ui::WolmanCustomPlot> ui;
 };
 
 #endif // WOLMANCUSTOMPLOT_H

@@ -6,7 +6,7 @@
 WolmanCustomPlot::WolmanCustomPlot(const Eigen::ArrayXf &d_sample, const Eigen::Array3d& dq_final, const Eigen::Array3d& edq):
 	m_dq_final(dq_final),
 	m_edq(edq),
-	ui(new Ui::WolmanCustomPlot)
+	ui(std::make_unique<Ui::WolmanCustomPlot>())
 {
 	setProperty("TypeOfCustomPlot", "WolmanCustomPlot");
 
@@ -67,6 +67,8 @@ WolmanCustomPlot::WolmanCustomPlot(const Eigen::ArrayXf &d_sample, const Eigen::
 
 	setInteractions(QCP::iRangeDrag | QCP::iRangeZoom);
 }
+
+WolmanCustomPlot::~WolmanCustomPlot() = default;
 
 void WolmanCustomPlot::rescale()
 {

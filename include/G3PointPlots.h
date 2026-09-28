@@ -36,7 +36,7 @@ public:
 	void closeEvent(QCloseEvent *event) override;
 
 private:
-	Ui::G3PointPlots *ui;
+	std::unique_ptr<Ui::G3PointPlots> ui;
 };
 
 #endif // G3POINTPLOTS_H
