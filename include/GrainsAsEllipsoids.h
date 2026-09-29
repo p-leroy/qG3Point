@@ -116,7 +116,7 @@ public:
 
 	bool toFile_MeOnly(QFile& out, short dataVersion) const override;
 
-	bool fromFile_MeOnly(QFile& in, short dataVersion, int flags, LoadedIDMap& oldToNewIDMap) override;
+	bool fromFile_MeOnly(QFile& in, LoadingContext& context) override;
 
 	ccPointCloud* m_cloud;
 	ccMainAppInterface* m_app;
