@@ -11,7 +11,7 @@ bool G3PointDisclaimer::s_disclaimerAccepted = false;
 
 G3PointDisclaimer::G3PointDisclaimer(QWidget *parent)
 	: QDialog(parent)
-	, ui(new Ui::G3PointDisclaimer)
+	, ui(std::make_unique<Ui::G3PointDisclaimer>())
 {
 	ui->setupUi(this);
 
@@ -34,10 +34,7 @@ G3PointDisclaimer::G3PointDisclaimer(QWidget *parent)
 	ui->labelCompilationInformation->setText(compilationInfo);
 }
 
-G3PointDisclaimer::~G3PointDisclaimer()
-{
-	delete ui;
-}
+G3PointDisclaimer::~G3PointDisclaimer() = default;
 
 bool G3PointDisclaimer::show(ccMainAppInterface *app)
 {

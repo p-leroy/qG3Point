@@ -242,7 +242,7 @@ bool GrainsAsEllipsoids::exportResultsAsCloud()
 	}
 
 	int sfIdx;
-	CCCoreLib::ScalarField* sf;
+	CCCoreLib::ScalarField::Shared sf;
 
 	// EXPORT g3point_index
 	sfIdx = cloud->addScalarField("g3point_index");
@@ -273,9 +273,9 @@ bool GrainsAsEllipsoids::exportResultsAsCloud()
 		ccLog::Error("[GrainsAsEllipsoids::exportResultsAsCloud] impossible to allocate scalar fields to export the radii");
 		return false;
 	}
-	CCCoreLib::ScalarField* sfRadiusX = cloud->getScalarField(sfIdxRadiusX);
-	CCCoreLib::ScalarField* sfRadiusY = cloud->getScalarField(sfIdxRadiusY);
-	CCCoreLib::ScalarField* sfRadiusZ = cloud->getScalarField(sfIdxRadiusZ);
+	auto sfRadiusX = cloud->getScalarField(sfIdxRadiusX);
+	auto sfRadiusY = cloud->getScalarField(sfIdxRadiusY);
+	auto sfRadiusZ = cloud->getScalarField(sfIdxRadiusZ);
 	for (unsigned int index = 0; index < cloud->size(); index++)
 	{
 		// if (m_fitNotOK.count(index))
@@ -302,8 +302,8 @@ bool GrainsAsEllipsoids::exportResultsAsCloud()
 		ccLog::Error("[GrainsAsEllipsoids::exportResultsAsCloud] impossible to allocate scalar fields to export azimuth and dip");
 		return false;
 	}
-	CCCoreLib::ScalarField* sfazimuth = cloud->getScalarField(sfIdxazimuth);
-	CCCoreLib::ScalarField* sfDip     = cloud->getScalarField(sfIdxDip);
+	auto sfazimuth = cloud->getScalarField(sfIdxazimuth);
+	auto sfDip     = cloud->getScalarField(sfIdxDip);
 	for (unsigned int index = 0; index < cloud->size(); index++)
 	{
 		sfazimuth->setValue(index, granuloAngleMView[index]);

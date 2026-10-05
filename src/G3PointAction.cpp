@@ -32,7 +32,9 @@
 #include <algorithm>
 #include <iostream>
 #include <fstream>
-#include <random>
+#include <memory>
+#include <math.h>
+#include <set>
 
 // Open3D
 #ifdef USE_OPEN3D_WITH_G3POINT
@@ -41,9 +43,6 @@
 
 // Eigen
 #include <Eigen/Geometry>
-
-#include <math.h>
-#include <set>
 
 #include <G3PointDialog.h>
 #include <G3PointDisclaimer.h>
@@ -164,53 +163,53 @@ bool G3PointAction::sfConvertToRandomRGB(const ccHObject::Container &selectedEnt
 	//apply random colors
 	for (ccHObject* ent : selectedEntities)
 	{
-		ccGenericPointCloud* cloud = nullptr;
-
 		bool lockedVertices = false;
-		cloud = ccHObjectCaster::ToPointCloud(ent, &lockedVertices);
-		if (lockedVertices)
+		ccPointCloud* pc = ccHObjectCaster::ToPointCloud(ent, &lockedVertices);
+
+		if (nullptr == pc)
 		{
-			ccLog::Warning("[G3Point::sfConvertToRandomRGB] DisplayLockedVerticesWarning");
 			continue;
 		}
-		if (cloud != nullptr) //TODO
+		if (lockedVertices)
 		{
-			ccPointCloud* pc = static_cast<ccPointCloud*>(cloud);
-			ccScalarField* sf = pc->getCurrentDisplayedScalarField();
-			//if there is no displayed SF --> nothing to do!
-			if (sf && sf->currentSize() >= pc->size())
-			{
-				if (!pc->resizeTheRGBTable(false))
-				{
-					ccLog::Error(QObject::tr("Not enough memory!"));
-					break;
-				}
-				else
-				{
-					ScalarType minSF = sf->getMin();
-					ScalarType maxSF = sf->getMax();
-
-					ScalarType step = (maxSF - minSF) / (s_randomColorsNumber - 1);
-					if (step == 0)
-						step = static_cast<ScalarType>(1.0);
-
-					for (unsigned i = 0; i < pc->size(); ++i)
-					{
-						ScalarType val = sf->getValue(i);
-						unsigned colIndex = static_cast<unsigned>((val - minSF) / step);
-						if (colIndex == s_randomColorsNumber)
-							--colIndex;
-
-						pc->setPointColor(i, randomColors->getValue(colIndex));
-					}
-
-					pc->showColors(true);
-					pc->showSF(false); //just in case
-				}
-			}
-
-			m_cloud->prepareDisplayForRefresh_recursive();
+			ccLog::Warning("[G3Point::sfConvertToRandomRGB] Point cloud or vertices are locked");
+			continue;
 		}
+
+		auto sf = pc->getCurrentDisplayedScalarField();
+		// if there is no displayed SF --> nothing to do!
+		if (sf && sf->currentSize() >= pc->size())
+		{
+			if (!pc->resizeTheRGBTable(false))
+			{
+				ccLog::Error(QObject::tr("Not enough memory!"));
+				break;
+			}
+			else
+			{
+				ScalarType minSF = sf->getMin();
+				ScalarType maxSF = sf->getMax();
+
+				ScalarType step = (maxSF - minSF) / (s_randomColorsNumber - 1);
+				if (step == 0)
+					step = static_cast<ScalarType>(1.0);
+
+				for (unsigned i = 0; i < pc->size(); ++i)
+				{
+					ScalarType val      = sf->getValue(i);
+					unsigned   colIndex = static_cast<unsigned>((val - minSF) / step);
+					if (colIndex == s_randomColorsNumber)
+						--colIndex;
+
+					pc->setPointColor(i, randomColors->getValue(colIndex));
+				}
+
+				pc->showColors(true);
+				pc->showSF(false); // just in case
+			}
+		}
+
+		m_cloud->prepareDisplayForRefresh_recursive();
 	}
 
 	return true;
@@ -304,7 +303,7 @@ int G3PointAction::segmentLabels(bool useParallelStrategy)
 		}
 	}
 
-	CCCoreLib::ScalarField* g3point_label = m_cloud->getScalarField(sfIdx);
+	auto g3point_label = m_cloud->getScalarField(sfIdx);
 	RGBAColorsTableType randomColors = getRandomColors(localMaximumIndexes.size());
 
 	if (!m_cloud->resizeTheRGBTable(false))
@@ -531,7 +530,7 @@ bool G3PointAction::updateLabelsAndColors()
 			return false;
 		}
 	}
-	CCCoreLib::ScalarField* g3point_label = m_cloud->getScalarField(sfIdx);
+	auto g3point_label = m_cloud->getScalarField(sfIdx);
 
 	RGBAColorsTableType randomColors = getRandomColors(m_stacks.size());
 
@@ -657,15 +656,15 @@ bool G3PointAction::processNewStacks(std::vector<std::vector<int>>& newStacks, i
 	return true;
 }
 
-bool G3PointAction::buildStacksFromG3PointLabelSF(CCCoreLib::ScalarField* g3PointLabel)
+bool G3PointAction::buildStacksFromG3PointLabelSF(const CCCoreLib::ScalarField& g3PointLabel)
 {
 	m_stacks.clear();
 
 	// get all the different labels
 	std::set<float> labels;
-	for (int idx = 0; idx < g3PointLabel->size(); idx++)
+	for (int idx = 0; idx < g3PointLabel.size(); idx++)
 	{
-		labels.insert(g3PointLabel->getValue(idx));
+		labels.insert(g3PointLabel.getValue(idx));
 	}
 
 	// rebuild the stacks
@@ -674,7 +673,7 @@ bool G3PointAction::buildStacksFromG3PointLabelSF(CCCoreLib::ScalarField* g3Poin
 		std::vector<int> stack;
 		for (int idx =0; idx < static_cast<int>(m_cloud->size()); idx++)
 		{
-			if (g3PointLabel->getLocalValue(idx) == label)
+			if (g3PointLabel.getLocalValue(idx) == label)
 			{
 				stack.push_back(idx);
 			}
@@ -1028,8 +1027,8 @@ void G3PointAction::fit()
 			ccLog::Warning("[G3PointAction::fit] no existing g3point_label scalar field");
 			return;
 		}
-		CCCoreLib::ScalarField* g3PointLabel = m_cloud->getScalarField(idx);
-		if (!buildStacksFromG3PointLabelSF(g3PointLabel))
+		auto g3PointLabel = m_cloud->getScalarField(idx);
+		if (!g3PointLabel || !buildStacksFromG3PointLabelSF(*g3PointLabel))
 		{
 			ccLog::Warning("[G3PointAction::fit] not possible to build stacks from existing g3point_scalar field");
 			return;
@@ -1163,7 +1162,7 @@ bool G3PointAction::wolman()
 		ccLog::Error("[G3PointAction::wolman] no g3point_label");
 		return false;
 	}
-	CCCoreLib::ScalarField* g3point_label = m_cloud->getScalarField(sfIdx);
+	auto g3point_label = m_cloud->getScalarField(sfIdx);
 	for (int i = 0; i < n_points; i++)
 	{
 		const CCVector3* P = m_grainsAsEllipsoids->m_cloud->getPoint(i);
@@ -1570,7 +1569,7 @@ int G3PointAction::segmentLabelsBraunWillett()
 			ccLog::Error("[G3Point::segment_labels] impossible to create scalar field g3point_initial_segmentation");
 		}
 	}
-	CCCoreLib::ScalarField* g3point_label = m_cloud->getScalarField(sfIdx);
+	auto g3point_label = m_cloud->getScalarField(sfIdx);
 
 	RGBAColorsTableType randomColors = getRandomColors(m_initial_localMaximumIndexes.size());
 
@@ -1678,11 +1677,11 @@ bool G3PointAction::computeNormalsAndOrientThemWithCloudCompare()
 	orientation = ccNormalVectors::Orientation::PLUS_Z;
 	model = CCCoreLib::LOCAL_MODEL_TYPES::LS;
 
-	QScopedPointer<ccProgressDialog> progressDialog(nullptr);
+	std::unique_ptr<ccProgressDialog> progressDialog{};
 
 	if (!m_cloud->getOctree())
 	{
-		if (!m_cloud->computeOctree(progressDialog.data()))
+		if (!m_cloud->computeOctree(progressDialog.get()))
 		{
 			ccLog::Error("Failed to compute octree for cloud " + m_cloud->getName());
 			return false;
@@ -1708,7 +1707,7 @@ bool G3PointAction::computeNormalsAndOrientThemWithCloudCompare()
 		}
 
 		ccLog::Print("computeNormalsWithOctree started...");
-		bool success = m_cloud->computeNormalsWithOctree(model, orientation, thisCloudRadius, progressDialog.data());
+		bool success = m_cloud->computeNormalsWithOctree(model, orientation, thisCloudRadius, progressDialog.get());
 		if(success)
 		{
 			ccLog::Print("computeNormalsWithOctree success");
@@ -1812,7 +1811,7 @@ bool G3PointAction::findNearestNeighborsNanoFlann(const unsigned globalIndex,
 	std::vector<size_t> retIndexes(m_kNN);
 	std::vector<float> outDistsSqr(m_kNN);
 
-	// Perform search
+		   // Perform search
 	nanoflann::KNNResultSet<float> resultSet(m_kNN);
 	resultSet.init(&retIndexes[0], &outDistsSqr[0]);
 	if(kdTree->findNeighbors(resultSet, &query[0]))
@@ -1836,10 +1835,10 @@ bool G3PointAction::computeNormWithFlann(unsigned index,
 {
 	CCVector3 N;
 
-	QScopedPointer<CCCoreLib::ReferenceCloud> points(new CCCoreLib::ReferenceCloud(m_cloud));
-	if(findNearestNeighborsNanoFlann(index, points.data(), kdTree))
+	std::unique_ptr<CCCoreLib::ReferenceCloud> points = std::make_unique<CCCoreLib::ReferenceCloud>(m_cloud);
+	if(findNearestNeighborsNanoFlann(index, points.get(), kdTree))
 	{
-		CCCoreLib::Neighbourhood neighbourhood(points.data());
+		CCCoreLib::Neighbourhood neighbourhood(points.get());
 		N = *neighbourhood.getLSPlaneNormal();
 	}
 	else
@@ -1876,7 +1875,7 @@ bool G3PointAction::computeNormalsWithCloudCompare()
 
 	// we instantiate 3D normal vectors
 	QSharedPointer<NormsTableType> theNorms(new NormsTableType);
-	QScopedPointer<NormsIndexesTableType> normsIndexes(new NormsIndexesTableType);
+	std::unique_ptr<NormsIndexesTableType> normsIndexes;
 	static const CCVector3 blankN(0, 0, 0);
 	if (!theNorms->resizeSafe(pointCount, true, &blankN))
 	{
@@ -1981,14 +1980,19 @@ bool G3PointAction::computeNormals()
 	if (m_cloud->hasNormals())
 	{
 		QMessageBox msgBox;
-		msgBox.addButton(tr("Keep"), QMessageBox::YesRole);
-		msgBox.addButton(tr("Recalculate"), QMessageBox::NoRole);
+		msgBox.setInformativeText("Recompute normals?");
 		msgBox.setText("There are existing normals, keep them or recompute.");
+		QPushButton *keepButton = msgBox.addButton(tr("Keep"), QMessageBox::ActionRole);
+		msgBox.addButton(tr("Recompute"), QMessageBox::AcceptRole);
+		QPushButton *cancelButton = msgBox.addButton(tr("Cancel"), QMessageBox::AcceptRole);
 
-		msgBox.setWindowFlag(Qt::WindowStaysOnTopHint, true);
-		int ret = msgBox.exec();
+		msgBox.exec();
 
-		if (ret == QMessageBox::No)
+		if (msgBox.clickedButton() == keepButton)
+		{
+			return true;
+		}
+		else if (msgBox.clickedButton() == cancelButton)
 		{
 			return false;
 		}
@@ -2290,8 +2294,8 @@ bool G3PointAction::setCloud(ccPointCloud *cloud)
 			}
 		}
 
-		CCCoreLib::ScalarField* g3PointLabelSF = m_cloud->getScalarField(sfIdx);
-		CCCoreLib::ScalarField* g3PointLabelBackupSF = m_cloud->getScalarField(sfIdxBackup);
+		auto g3PointLabelSF = m_cloud->getScalarField(sfIdx);
+		auto g3PointLabelBackupSF = m_cloud->getScalarField(sfIdxBackup);
 
 		// get the set of labels
 		std::set<ScalarType> labelsSet;
