@@ -1984,8 +1984,8 @@ bool G3PointAction::computeNormals()
 		msgBox.setText("There are existing normals, keep them or recompute.");
 		QPushButton *keepButton = msgBox.addButton(tr("Keep"), QMessageBox::ActionRole);
 		msgBox.addButton(tr("Recompute"), QMessageBox::AcceptRole);
-		QPushButton *cancelButton = msgBox.addButton(tr("Cancel"), QMessageBox::AcceptRole);
-
+		QPushButton* cancelButton = msgBox.addButton(tr("Cancel"), QMessageBox::AcceptRole);
+		msgBox.setWindowFlags(msgBox.windowFlags() | Qt::WindowStaysOnTopHint);
 		msgBox.exec();
 
 		if (msgBox.clickedButton() == keepButton)
