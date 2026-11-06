@@ -1,4 +1,4 @@
-#version 330
+#version 120
 
 // uniforms
 uniform vec4 lightPosition;             // should be in the eye space
@@ -14,12 +14,9 @@ uniform bool drawPoints;
 
 uniform vec3 objectColor;
 
-// in
-in vec3 esVertex;
-in vec3 esNormal;
-
-// out
-out vec4 fragColor;
+// varyings
+varying vec3 esVertex;
+varying vec3 esNormal;
 
 void main()
 {
@@ -53,17 +50,17 @@ void main()
 
 	if (drawPoints)
 	{
-		fragColor = vec4(result * vec3(0.8, 0.8, 0.8), 1.);
+		gl_FragColor = vec4(result * vec3(0.8, 0.8, 0.8), 1.);
 	}
 	else
 	{
 		if (drawLines)
 		{
-			fragColor =  vec4(result * vec3(0.8, 0.8, 0.8), 1.);
+			gl_FragColor =  vec4(result * vec3(0.8, 0.8, 0.8), 1.);
 		}
 		else
 		{
-			fragColor =  vec4(result, 1.);
+			gl_FragColor =  vec4(result, 1.);
 		}
 	}
 }

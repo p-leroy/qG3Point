@@ -5,8 +5,6 @@
 #include <ccGLMatrix.h>
 #include <ccSerializableObject.h>
 
-#include <QCoreApplication>
-#include <QDir>
 #include <QOpenGLShaderProgram>
 
 #include <iostream>
@@ -26,8 +24,6 @@ GrainsAsEllipsoids::GrainsAsEllipsoids(ccMainAppInterface *app)
 
 	this->setMetaData("class_name", "GrainsAsEllipsoids");
 	this->setMetaData("plugin_name", "G3Point");
-
-	setShaderPath();
 }
 
 GrainsAsEllipsoids::~GrainsAsEllipsoids(){}
@@ -40,7 +36,6 @@ GrainsAsEllipsoids::GrainsAsEllipsoids(ccPointCloud *cloud, ccMainAppInterface *
 	this->setMetaData("class_name", "GrainsAsEllipsoids");
 	this->setMetaData("plugin_name", "G3Point");
 
-	setShaderPath();
 	setGrainColorsTable(colors);
 
 	m_center.resize(m_stacks.size());
@@ -96,14 +91,6 @@ GrainsAsEllipsoids::GrainsAsEllipsoids(ccPointCloud *cloud, ccMainAppInterface *
 	}
 
 	m_ccBBoxAll.setValidity(true);
-}
-
-void GrainsAsEllipsoids::setShaderPath()
-{
-	QDir appDir = QCoreApplication::applicationDirPath();
-	m_shaderPath = (appDir.absolutePath() + "/shaders/G3Point");
-
-	QCoreApplication::instance();
 }
 
 void GrainsAsEllipsoids::setGrainColorsTable(const RGBAColorsTableType& colorTable)
@@ -846,7 +833,8 @@ bool GrainsAsEllipsoids::initProgram(QOpenGLContext* context)
 		m_program.reset(new QOpenGLShaderProgram(context));
 
 		// create vertex shader
-		QString vertexShaderFile(m_shaderPath + "/DrawGrains.vs");
+		QString ccShaderPath = ccGLWindowInterface::GetShaderPath() + "/G3Point";
+		QString vertexShaderFile(ccShaderPath + "/DrawGrains.vert");
 		if (!m_program->addShaderFromSourceFile(QOpenGLShader::Vertex, vertexShaderFile))
 		{
 			error = m_program->log();
@@ -855,7 +843,7 @@ bool GrainsAsEllipsoids::initProgram(QOpenGLContext* context)
 		}
 
 		// create fragment shader
-		QString fragmentShaderFile(m_shaderPath + "/DrawGrains.fs");
+		QString fragmentShaderFile(ccShaderPath + "/DrawGrains.frag");
 		if (!m_program->addShaderFromSourceFile(QOpenGLShader::Fragment, fragmentShaderFile))
 		{
 			error = m_program->log();
