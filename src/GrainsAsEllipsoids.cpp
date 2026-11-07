@@ -5,8 +5,6 @@
 #include <ccGLMatrix.h>
 #include <ccSerializableObject.h>
 
-#include <QCoreApplication>
-#include <QDir>
 #include <QOpenGLShaderProgram>
 
 #include <iostream>
@@ -26,8 +24,6 @@ GrainsAsEllipsoids::GrainsAsEllipsoids(ccMainAppInterface *app)
 
 	this->setMetaData("class_name", "GrainsAsEllipsoids");
 	this->setMetaData("plugin_name", "G3Point");
-
-	setShaderPath();
 }
 
 GrainsAsEllipsoids::~GrainsAsEllipsoids(){}
@@ -40,7 +36,6 @@ GrainsAsEllipsoids::GrainsAsEllipsoids(ccPointCloud *cloud, ccMainAppInterface *
 	this->setMetaData("class_name", "GrainsAsEllipsoids");
 	this->setMetaData("plugin_name", "G3Point");
 
-	setShaderPath();
 	setGrainColorsTable(colors);
 
 	m_center.resize(m_stacks.size());
@@ -96,14 +91,6 @@ GrainsAsEllipsoids::GrainsAsEllipsoids(ccPointCloud *cloud, ccMainAppInterface *
 	}
 
 	m_ccBBoxAll.setValidity(true);
-}
-
-void GrainsAsEllipsoids::setShaderPath()
-{
-	QDir appDir = QCoreApplication::applicationDirPath();
-	m_shaderPath = (appDir.absolutePath() + "/shaders/G3Point");
-
-	QCoreApplication::instance();
 }
 
 void GrainsAsEllipsoids::setGrainColorsTable(const RGBAColorsTableType& colorTable)
@@ -846,7 +833,8 @@ bool GrainsAsEllipsoids::initProgram(QOpenGLContext* context)
 		m_program.reset(new QOpenGLShaderProgram(context));
 
 		// create vertex shader
-		QString vertexShaderFile(m_shaderPath + "/DrawGrains.vs");
+		QString ccShaderPath = ccGLWindowInterface::GetShaderPath() + "/G3Point";
+		QString vertexShaderFile(ccShaderPath + "/DrawGrains.vert");
 		if (!m_program->addShaderFromSourceFile(QOpenGLShader::Vertex, vertexShaderFile))
 		{
 			error = m_program->log();
@@ -855,7 +843,7 @@ bool GrainsAsEllipsoids::initProgram(QOpenGLContext* context)
 		}
 
 		// create fragment shader
-		QString fragmentShaderFile(m_shaderPath + "/DrawGrains.fs");
+		QString fragmentShaderFile(ccShaderPath + "/DrawGrains.frag");
 		if (!m_program->addShaderFromSourceFile(QOpenGLShader::Fragment, fragmentShaderFile))
 		{
 			error = m_program->log();
@@ -1226,32 +1214,32 @@ bool GrainsAsEllipsoids::toFile_MeOnly(QFile& out, short dataVersion) const
 	return true;
 }
 
-bool GrainsAsEllipsoids::fromFile_MeOnly(QFile& in, short dataVersion, int flags, LoadedIDMap& oldToNewIDMap)
+bool GrainsAsEllipsoids::fromFile_MeOnly(QFile& in, LoadingContext& context)
 {
 	ccLog::Print("[G3Point] read GrainsAsEllipsoids object from .bin");
 
-	if (!ccHObject::fromFile_MeOnly(in, dataVersion, flags, oldToNewIDMap))
+	if (!ccHObject::fromFile_MeOnly(in, context))
 		return false;
 
-	if (!ccSerializationHelper::GenericArrayFromFile<Eigen::Array3f, 1, Eigen::Array3f>(m_center, in, dataVersion, "G3Point m_center"))
+	if (!ccSerializationHelper::GenericArrayFromFile<Eigen::Array3f, 1, Eigen::Array3f>(m_center, in, context.dataVersion, "G3Point m_center"))
 	{
 		ccLog::Warning("[G3Point] error reading m_center");
 		return ReadError();
 	}
 
-	if (!ccSerializationHelper::GenericArrayFromFile<Eigen::Array3f, 1, Eigen::Array3f>(m_radii, in, dataVersion, "G3Point m_radii"))
+	if (!ccSerializationHelper::GenericArrayFromFile<Eigen::Array3f, 1, Eigen::Array3f>(m_radii, in, context.dataVersion, "G3Point m_radii"))
 	{
 		ccLog::Warning("[G3Point] error reading m_radii");
 		return ReadError();
 	}
 
-	if (!ccSerializationHelper::GenericArrayFromFile<Eigen::Matrix3f, 1, Eigen::Matrix3f>(m_rotationMatrix, in, dataVersion, "G3Point m_rotationMatrix"))
+	if (!ccSerializationHelper::GenericArrayFromFile<Eigen::Matrix3f, 1, Eigen::Matrix3f>(m_rotationMatrix, in, context.dataVersion, "G3Point m_rotationMatrix"))
 	{
 		ccLog::Warning("[G3Point] error reading m_rorationMatrix");
 		return ReadError();
 	}
 
-	if (!ccSerializationHelper::GenericArrayFromFile<CCVector3f, 1, CCVector3f>(m_grainColors, in, dataVersion, "G3Point m_grainColors"))
+	if (!ccSerializationHelper::GenericArrayFromFile<CCVector3f, 1, CCVector3f>(m_grainColors, in, context.dataVersion, "G3Point m_grainColors"))
 	{
 		ccLog::Warning("[G3Point] error reading m_rorationMatrix");
 		return ReadError();

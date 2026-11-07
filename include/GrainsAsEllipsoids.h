@@ -36,9 +36,6 @@ public:
 	GrainsAsEllipsoids(ccPointCloud *cloud, ccMainAppInterface* app, const std::vector<std::vector<int> >& stacks, const RGBAColorsTableType& colors);
 	~GrainsAsEllipsoids();
 
-	//! Set the path for shaders
-	void setShaderPath();
-
 	void setLocalMaximumIndexes(const Eigen::ArrayXi &localMaximumIndexes);
 
 	void setGrainColorsTable(const RGBAColorsTableType& colorTable);
@@ -116,7 +113,7 @@ public:
 
 	bool toFile_MeOnly(QFile& out, short dataVersion) const override;
 
-	bool fromFile_MeOnly(QFile& in, short dataVersion, int flags, LoadedIDMap& oldToNewIDMap) override;
+	bool fromFile_MeOnly(QFile& in, LoadingContext& context) override;
 
 	ccPointCloud* m_cloud;
 	ccMainAppInterface* m_app;
@@ -130,9 +127,6 @@ public:
 
 	QSharedPointer<QOpenGLShaderProgram> m_program;
 	bool m_programInitialized = false;
-
-	// Default path to the shader files
-	QString m_shaderPath;
 
 	std::vector<Eigen::Array3f> m_center;
 	std::vector<Eigen::Array3f> m_radii;

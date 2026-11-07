@@ -1,15 +1,13 @@
-# CloudCompare example for standard plugins
-
-# REPLACE ALL 'G3PointPlugin' OCCURENCES BY YOUR PLUGIN NAME
-# AND ADAPT THE CODE BELOW TO YOUR OWN NEEDS!
-
-# Add an option to CMake to control whether we build this plugin or not
-option( PLUGIN_G3POINT "Install example plugin" OFF )
+option( PLUGIN_G3POINT "Install GP3Point plugin" OFF )
 
 if ( PLUGIN_G3POINT )
 	project( G3PointPlugin )
 
-	AddPlugin( NAME ${PROJECT_NAME} )
+	AddPlugin(
+		NAME ${PROJECT_NAME}
+		TYPE standard
+		SHADER_FOLDER G3Point
+	)
 
 	target_sources(G3PointPlugin
 		PRIVATE
@@ -20,12 +18,13 @@ if ( PLUGIN_G3POINT )
 
 	add_subdirectory( include )
 	add_subdirectory( src )
+	add_subdirectory( shaders )
 	add_subdirectory( ui )
 
-	# target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_17)  # for mlpack
-	
 	# may be needed for debug
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /bigobj")
+	if(WIN32)
+		target_compile_options(G3PointPlugin PRIVATE /bigobj)
+	endif()
 
 	#============
 	# QCUSTOMPLOT
@@ -44,29 +43,32 @@ if ( PLUGIN_G3POINT )
 
 	# OPEN3D
 	option(USE_OPEN3D_WITH_G3POINT "Enable the use of Open3D with G3Point" OFF)
+
 	if (USE_OPEN3D_WITH_G3POINT)
 		find_package( Open3D REQUIRED ) # Find installed Open3D, which exports Open3D::Open3D
 		target_link_libraries( ${PROJECT_NAME} Open3D::Open3D )
-		if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-			set( OPENCV_DEP_DLL_FILES
-				${Open3D_DIR}/../bin/Open3D.dll
-				${Open3D_DIR}/../bin/tbb12_debug.dll)
-		elseif(CMAKE_BUILD_TYPE STREQUAL "Release" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
-			set( OPENCV_DEP_DLL_FILES
-				${Open3D_DIR}/../bin/Open3D.dll
-				${Open3D_DIR}/../bin/tbb12.dll)
-		endif()
 		message( "Open3D_DIR ${Open3D_DIR}" )
-		copy_files( "${OPENCV_DEP_DLL_FILES}" "${CLOUDCOMPARE_DEST_FOLDER}" 1) #mind the quotes!
+		if(WIN32)
+			if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+				set( OPENCV_DEP_DLL_FILES
+					${Open3D_DIR}/../bin/Open3D.dll
+					${Open3D_DIR}/../bin/tbb12_debug.dll )
+			elseif(CMAKE_BUILD_TYPE STREQUAL "Release" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
+				set( OPENCV_DEP_DLL_FILES
+					${Open3D_DIR}/../bin/Open3D.dll
+					${Open3D_DIR}/../bin/tbb12.dll )
+			endif()
+			copy_files( "${OPENCV_DEP_DLL_FILES}" "${CLOUDCOMPARE_DEST_FOLDER}" 1 ) #mind the quotes!
+		endif()
 	endif()
 
-	copy_files( "${CMAKE_CURRENT_SOURCE_DIR}/shaders/DrawGrains.vs" "${CLOUDCOMPARE_DEST_FOLDER}/shaders/G3Point" 1) #mind the quotes!
-	copy_files( "${CMAKE_CURRENT_SOURCE_DIR}/shaders/DrawGrains.fs" "${CLOUDCOMPARE_DEST_FOLDER}/shaders/G3Point" 1) #mind the quotes!
+	if(TARGET nanoflann::nanoflann)
+		target_link_libraries( ${PROJECT_NAME} nanoflann::nanoflann)
+	else()
+		message(error "Nanoflann not found, it should be provided by CCCoreLib" )
+	endif()
 
-	target_include_directories( ${PROJECT_NAME} PRIVATE
-		../../../../libs/qCC_db/extern/CCCoreLib/extern/nanoflann/include
-		${EIGEN_ROOT_DIR}
-	)
+	target_include_directories( ${PROJECT_NAME} PRIVATE ${EIGEN_ROOT_DIR} )
 
 	#================
 	# git commit hash
