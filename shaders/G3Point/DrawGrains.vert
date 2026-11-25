@@ -1,4 +1,4 @@
-#version 330
+#version 120
 
 // uniforms
 uniform mat4 modelMatrix;
@@ -8,15 +8,15 @@ uniform mat4 modelViewProjectionMatrix;
 uniform int instanceId;
 uniform int pointSize;
 
-// in
-in vec3 vertexPosition;
-in vec3 vertexNormal;
-in vec2 vertexTexCoord;
+// attributes
+attribute vec3 vertexPosition;
+attribute vec3 vertexNormal;
+attribute vec2 vertexTexCoord;
 
-// out
-out vec3 esVertex;
-out vec3 esNormal;
-//out vec2 texCoord0;
+// varyings
+varying vec3 esVertex;
+varying vec3 esNormal;
+//varying vec2 texCoord0;
 
 void main()
 {
