@@ -105,7 +105,7 @@ void G3PointAction::GetG3PointAction(ccPointCloud *cloud, ccMainAppInterface *ap
 
 RGBAColorsTableType getRandomColors(size_t randomColorsNumber)
 {
-	Q_ASSERT(randomColorsNumber > 1);
+	Q_ASSERT(randomColorsNumber > 0);
 
 	RGBAColorsTableType randomColors;
 	if (!randomColors.reserveSafe(static_cast<unsigned>(randomColorsNumber)))
@@ -251,12 +251,12 @@ int G3PointAction::segmentLabels(bool useParallelStrategy)
 	}
 
 	// if the minimum slope is positive, the receiver is a local maximum
-	int nb_maxima = (min_slopes > 0).count();
+	int            nb_maxima           = (min_slopes >= 0).count();
 	Eigen::ArrayXi localMaximumIndexes = Eigen::ArrayXi::Zero(nb_maxima);
 	int l = 0;
 	for (unsigned int k = 0; k < m_cloud->size(); k++)
 	{
-		if (min_slopes(k) > 0)
+		if (min_slopes(k) >= 0)
 		{
 			localMaximumIndexes(l) = k;
 			receivers(k) = k;
@@ -816,12 +816,21 @@ bool G3PointAction::keep(Xb& condition)
 	return true;
 }
 
-template<typename T>
+template <typename T>
 bool G3PointAction::EigenArrayToFile(QString name, T array)
 {
+#ifdef G3POINT_EXPORT_ARRAYS_FOR_DEBUG
+	QDir dir = QDir::home();
+	if (!dir.mkpath("g3point"))
+	{
+		ccLog::Error("Impossible to create g3point directory in: " + dir.path());
+	}
+	QString filename = dir.path() + "/g3point/" + name;
+	ccLog::Print("Save eigen array to file " + filename);
 	const Eigen::IOFormat CSVFormat(Eigen::StreamPrecision, Eigen::DontAlignCols, ", ", "\n");
-	std::ofstream file(name.toLatin1());
+	std::ofstream         file(filename.toLatin1());
 	file << array.format(CSVFormat);
+#endif
 	return true;
 }
 
@@ -837,10 +846,10 @@ bool G3PointAction::cluster()
 	Eigen::ArrayXXd D1(nlabels, nlabels);
 	if (m_localMaximumIndexes.size() != nlabels)
 	{
-		ccLog::Error("[G3PointAction::cluster] m_localMaximumIndexes size ("
-					 + QString::number(m_localMaximumIndexes.size())
-					 + ") different from nlabels "
-					 + QString::number(nlabels));
+		ccLog::Warning("[G3PointAction::cluster] m_localMaximumIndexes size ("
+			           + QString::number(m_localMaximumIndexes.size())
+			           + ") different from nlabels "
+			           + QString::number(nlabels));
 		return false;
 	}
 	for (int i = 0; i < nlabels; i++)
@@ -898,7 +907,7 @@ bool G3PointAction::cluster()
 		k++;
 	}
 
-	Eigen::ArrayXXd A = computeMeanAngleBetweenNormalsAtBorders();
+	Eigen::ArrayXXd Aangle = computeMeanAngleBetweenNormalsAtBorders();
 
 	// merge labels if sinks are
 	// => close to each other (Dist == 1)
@@ -908,15 +917,18 @@ bool G3PointAction::cluster()
 
 	if (!checkStacks(m_stacks, m_cloud->size()))
 	{
-		ccLog::Error("m_stacks is not valid");
+		ccLog::Warning("m_stacks is not valid");
 		return false;
 	}
 
 	// create the condition matrix and force the symmetry of the matrix
-	XXb condition = (Dist < 1) || (Nneigh < 1) || (A > m_maxAngle1) || (A != A);
+	XXb condition             = (Dist < 1) || (Nneigh < 1) || (Aangle > m_maxAngle1) || (Aangle != Aangle);
 	XXb symmetrical_condition = (condition == condition.transpose()).select(condition, true);
 	symmetrical_condition.count();
 	condition = symmetrical_condition;
+
+	EigenArrayToFile("Aangle.csv", Aangle);
+	EigenArrayToFile("condition.csv", symmetrical_condition);
 
 	std::vector<std::vector<int>> newStacks;
 	Eigen::ArrayXi newLabels = Eigen::ArrayXi::Ones(m_labels.size()) * (-1);
@@ -1310,47 +1322,11 @@ bool G3PointAction::angles()
 		return false;
 	}
 
-	float delta = static_cast<float>(1e32);
 	int n_ellipsoids = static_cast<float>(m_grainsAsEllipsoids->m_rotationMatrix.size());
 	QVector<double> granuloAngleMView(n_ellipsoids);
 	QVector<double> granuloAngleXView(n_ellipsoids);
 
-	for (int i = 0; i < n_ellipsoids; i++)
-	{
-		float u, v, w;
-
-		Eigen::Vector3f p2 {m_grainsAsEllipsoids->m_rotationMatrix[i](0, 0),
-						   m_grainsAsEllipsoids->m_rotationMatrix[i](1, 0),
-						   m_grainsAsEllipsoids->m_rotationMatrix[i](2, 0)};
-
-		// x-y plot - mapview (angle with y axis)
-		Eigen::Vector3f p1 {m_grainsAsEllipsoids->m_center[i].x(),
-						   m_grainsAsEllipsoids->m_center[i].y() + delta,
-						   m_grainsAsEllipsoids->m_center[i].z()};
-		float angle = atan2(p1.cross(p2).norm(), p1.dot(p2));
-		u = p2(0);
-		v = p2(1);
-		if ((angle > M_PI / 2) || (angle < - M_PI / 2))
-		{
-			u = -u;
-			v = -v;
-		}
-		granuloAngleMView[i] = (atan(v / u) + M_PI / 2) * 180 / M_PI;
-
-		// x-z plot
-		p1 << m_grainsAsEllipsoids->m_center[i].x(),
-			m_grainsAsEllipsoids->m_center[i].y(),
-			m_grainsAsEllipsoids->m_center[i].z() + delta;
-		angle = atan2(p1.cross(p2).norm(), p1.dot(p2));
-		v = p2(0);
-		w = p2(1);
-		if ((angle > M_PI / 2) || (angle < - M_PI / 2))
-		{
-			v = -v;
-			w = -w;
-		}
-		granuloAngleXView[i] = (atan(v / w) + M_PI / 2) * 180 / M_PI;
-	}
+	GrainsAsEllipsoids::GetAzimuthAndDir(granuloAngleMView, granuloAngleXView, m_grainsAsEllipsoids);
 
 	// QCustomPlot
 	if (!s_g3PointPlots)
@@ -1777,7 +1753,7 @@ bool G3PointAction::computeNormalsWithOpen3D()
 
 	// compute the normals
 	pcd.EstimateNormals(open3d::geometry::KDTreeSearchParamKNN(m_kNN));
-
+	ccLog::Print("[computeNormalsWithOpen3D]");
 
 	// we 'compress' each normal
 	int pointCount = m_cloud->size();
@@ -1908,6 +1884,14 @@ bool G3PointAction::computeNormalsWithCloudCompare()
 	}
 
 	ccLog::Print("[computeNormalsWithCloudCompare]");
+
+	QProgressDialog progress("Computing normals with CloudCompare.", "Cancel", 0, pointCount, this->m_dlg);
+	progress.setWindowModality(Qt::WindowModal);
+	progress.setMinimumDuration(0); // Show immediately
+
+	std::atomic<int>  processed(0);
+	std::atomic<bool> canceled(false);
+
 #ifdef QT_DEBUG
 	//manually call the static per-point method!
 	for (unsigned index = 0; index < pointCount; ++index)
@@ -1921,10 +1905,39 @@ bool G3PointAction::computeNormalsWithCloudCompare()
 	{
 		pointsIndexes[i] = i;
 	}
-	int threadCount = std::max(1, ccQtHelpers::GetMaxThreadCount() - 2);
-	ccLog::Print("[computeNormalsWithCloudCompare] parallel strategy, thread count " + QString::number(threadCount));
-	QThreadPool::globalInstance()->setMaxThreadCount(threadCount);
-	QtConcurrent::blockingMap(pointsIndexes, [=](int index){computeNormWithFlann(index, theNorms.data(), m_kdTree.data());});
+
+	// Worker lambda (runs in parallel)
+	auto worker = [&](int index) -> int
+	{
+		if (canceled)
+			return 0;
+		computeNormWithFlann(index, theNorms.data(), m_kdTree.data());
+		processed.fetch_add(1);
+		return 0;
+	};
+
+	// Start parallel processing
+	QFuture<int>        future = QtConcurrent::mapped(pointsIndexes, worker);
+	QFutureWatcher<int> watcher;
+	watcher.setFuture(future);
+
+	// Timer to update progress bar (every 50ms)
+	QTimer timer;
+	QObject::connect(&timer, &QTimer::timeout, [&]()
+		             {
+		progress.setValue(processed.load());
+		if (progress.wasCanceled()) {
+			canceled = true;
+			watcher.cancel();
+		} });
+	timer.start(50);
+
+	// Show dialog (modal, but allows event processing)
+	progress.exec();
+
+	timer.stop();
+	progress.setValue(pointsIndexes.size());
+
 #endif
 
 	if (!m_cloud->hasNormals())
@@ -1951,6 +1964,13 @@ bool G3PointAction::computeNormalsWithCloudCompare()
 	ccLog::Print("[computeNormalsWithCloudCompare] orient normals, PLUS_Z ");
 	ccNormalVectors::UpdateNormalOrientations(m_cloud, *m_cloud->normals(), ccNormalVectors::PLUS_Z);
 
+	for (int i = 0; i < pointCount; i++)
+	{
+		m_normals(i, 0) = theNorms->at(i).x;
+		m_normals(i, 1) = theNorms->at(i).y;
+		m_normals(i, 2) = theNorms->at(i).z;
+	}
+
 	return true;
 }
 
@@ -1964,8 +1984,8 @@ bool G3PointAction::computeNormals()
 		msgBox.setText("There are existing normals, keep them or recompute.");
 		QPushButton *keepButton = msgBox.addButton(tr("Keep"), QMessageBox::ActionRole);
 		msgBox.addButton(tr("Recompute"), QMessageBox::AcceptRole);
-		QPushButton *cancelButton = msgBox.addButton(tr("Cancel"), QMessageBox::AcceptRole);
-
+		QPushButton* cancelButton = msgBox.addButton(tr("Cancel"), QMessageBox::AcceptRole);
+		msgBox.setWindowFlags(msgBox.windowFlags() | Qt::WindowStaysOnTopHint);
 		msgBox.exec();
 
 		if (msgBox.clickedButton() == keepButton)
@@ -2050,6 +2070,16 @@ void G3PointAction::segment()
 {
 	init();
 
+	unsigned pointCount = m_cloud->size();
+	if (m_kNN >= pointCount)
+	{
+		m_dlg->setWindowFlag(Qt::WindowStaysOnTopHint, false);
+		ccLog::Error("The point cloud is too small wrt the kNN value, cancel processing");
+		m_dlg->setWindowFlag(Qt::WindowStaysOnTopHint, true);
+		m_dlg->show();
+		return;
+	}
+
 	// Find neighbors of each point of the cloud
 	bool useParallelStrategy;
 #ifdef NDEBUG
@@ -2064,7 +2094,6 @@ void G3PointAction::segment()
 	computeNormals();
 
 	// compute the centroid
-	unsigned pointCount = m_cloud->size();
 	CCVector3d G(0, 0, 0);
 	{
 		for (unsigned i = 0; i < pointCount; ++i)
@@ -2111,7 +2140,10 @@ void G3PointAction::clusterAndOrClean()
 	{
 		if (!cluster())
 		{
+			m_dlg->setWindowFlag(Qt::WindowStaysOnTopHint, false);
 			ccLog::Error("[G3PointAction::clusterAndOrClean] clustering failed");
+			m_dlg->setWindowFlag(Qt::WindowStaysOnTopHint, true);
+			m_dlg->show();
 			return;
 		}
 	}
@@ -2120,7 +2152,10 @@ void G3PointAction::clusterAndOrClean()
 	{
 		if (!cleanLabels())
 		{
+			m_dlg->setWindowFlag(Qt::WindowStaysOnTopHint, false);
 			ccLog::Error("[G3PointAction::clusterAndOrClean] cleaning failed");
+			m_dlg->setWindowFlag(Qt::WindowStaysOnTopHint, true);
+			m_dlg->show();
 			return;
 		}
 	}

@@ -14,7 +14,7 @@ if ( PLUGIN_G3POINT )
 		ui/WolmanCustomPlot.ui
 	)
 
-	set(QG3POINT_PLUGIN_VERSION "0.6")
+	set(QG3POINT_PLUGIN_VERSION "0.7")
 
 	add_subdirectory( include )
 	add_subdirectory( src )
@@ -39,6 +39,12 @@ if ( PLUGIN_G3POINT )
 		message( SEND_ERROR "No Eigen root directory specified (EIGEN_ROOT_DIR)" )
 	else()
 		message( STATUS "EIGEN_ROOT_DIR " ${EIGEN_ROOT_DIR} )
+	endif()
+
+	# Conditionally add G3POINT_EXPORT_ARRAYS_FOR_DEBUG
+	option(G3POINT_EXPORT_ARRAYS_FOR_DEBUG "Export Eigen arrays for comparison with Python calculations" OFF)
+	if(G3POINT_EXPORT_ARRAYS_FOR_DEBUG)
+	    target_compile_definitions(${PROJECT_NAME} PRIVATE G3POINT_EXPORT_ARRAYS_FOR_DEBUG)
 	endif()
 
 	# OPEN3D
@@ -114,13 +120,21 @@ if ( PLUGIN_G3POINT )
 	message(${PROJECT_NAME} " " GIT_COMMIT_HASH_CC " " ${GIT_COMMIT_HASH_CC})
 	message(${PROJECT_NAME} " " QG3POINT_VERSION " " ${QG3POINT_PLUGIN_VERSION})
 
-	target_compile_definitions(${PROJECT_NAME} PRIVATE
-		GIT_BRANCH_CC="${GIT_BRANCH_CC}"
-		GIT_COMMMIT_HASH_CC="${GIT_COMMIT_HASH_CC}"
-		PUBLIC GIT_BRANCH_G3POINT="${GIT_BRANCH_G3POINT}"
-		GIT_COMMMIT_HASH_G3POINT="${GIT_COMMIT_HASH_G3POINT}"
-		GIT_TAG_G3POINT="${GIT_TAG_G3POINT}"
-		G3POINT_VERSION="${QG3POINT_PLUGIN_VERSION}"
-		)
+	# Always define the common macros
+	target_compile_definitions(${PROJECT_NAME}
+	    PRIVATE
+	    GIT_BRANCH_CC="${GIT_BRANCH_CC}"
+	    GIT_COMMMIT_HASH_CC="${GIT_COMMIT_HASH_CC}"
+	    PUBLIC
+	    GIT_BRANCH_G3POINT="${GIT_BRANCH_G3POINT}"
+	    GIT_COMMMIT_HASH_G3POINT="${GIT_COMMIT_HASH_G3POINT}"
+	    GIT_TAG_G3POINT="${GIT_TAG_G3POINT}"
+	    G3POINT_VERSION="${QG3POINT_PLUGIN_VERSION}"
+	)
+
+	# Conditionally add USE_OPEN3D_WITH_G3POINT
+	if(USE_OPEN3D_WITH_G3POINT)
+	    target_compile_definitions(${PROJECT_NAME} PRIVATE USE_OPEN3D_WITH_G3POINT)
+	endif()
 
 endif()
